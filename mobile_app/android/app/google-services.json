@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "151395442234",
+    "project_id": "trustnet-ai",
+    "storage_bucket": "trustnet-ai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:151395442234:android:7c5f3af9f9ed53b43b5f03",
+        "android_client_info": {
+          "package_name": "com.example.trustnet_ai_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuDYW4pJ38nyifBeVRr7PIWmlqEwu88-Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
