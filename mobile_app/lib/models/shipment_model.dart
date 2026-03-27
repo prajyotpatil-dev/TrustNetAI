@@ -1,12 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'shipment_status.dart';
 
 class ShipmentModel {
   final String shipmentId;
   final String lrNumber;
   final String fromCity;
   final String toCity;
-  final String status;
-  final String transporterId;
+  final ShipmentStatus status;
+  final String? transporterId;
   final String? businessId; // Optional if not assigned immediately
   final String? epodUrl;
   final double trustScore;
@@ -19,7 +20,7 @@ class ShipmentModel {
     required this.fromCity,
     required this.toCity,
     required this.status,
-    required this.transporterId,
+    this.transporterId,
     this.businessId,
     this.epodUrl,
     this.trustScore = 0.0,
@@ -33,8 +34,8 @@ class ShipmentModel {
       lrNumber: map['lrNumber'] as String? ?? 'UNKNOWN',
       fromCity: map['fromCity'] as String? ?? '',
       toCity: map['toCity'] as String? ?? '',
-      status: map['status'] as String? ?? 'created',
-      transporterId: map['transporterId'] as String? ?? '',
+      status: ShipmentStatusExtension.fromString(map['status'] as String? ?? 'created'),
+      transporterId: map['transporterId'] as String?,
       businessId: map['businessId'] as String?,
       epodUrl: map['epodUrl'] as String?,
       trustScore: (map['trustScore'] as num?)?.toDouble() ?? 0.0,
@@ -57,7 +58,7 @@ class ShipmentModel {
       'lrNumber': lrNumber,
       'fromCity': fromCity,
       'toCity': toCity,
-      'status': status,
+      'status': status.firestoreValue,
       'transporterId': transporterId,
       if (businessId != null) 'businessId': businessId,
       if (epodUrl != null) 'epodUrl': epodUrl,

@@ -1,5 +1,4 @@
 import 'package:go_router/go_router.dart';
-import 'package:flutter/material.dart';
 
 import '../screens/onboarding/splash_screen.dart';
 import '../screens/onboarding/role_selection_screen.dart';
@@ -7,12 +6,13 @@ import '../screens/onboarding/login_screen.dart';
 // Business
 import '../screens/business/business_dashboard_screen.dart';
 import '../screens/business/track_shipment_screen.dart';
+import '../screens/business/track_screen.dart';
 import '../screens/business/trust_score_screen.dart';
 import '../screens/business/ai_risk_report_screen.dart';
 import '../screens/business/network_trust_screen.dart';
-// Transporter
 import '../screens/transporter/transporter_dashboard_screen.dart';
 import '../screens/transporter/create_shipment_screen.dart';
+import '../screens/transporter/transporter_marketplace_screen.dart';
 import '../screens/transporter/update_status_screen.dart';
 import '../screens/transporter/upload_epod_screen.dart';
 // Shared Profiles & Settings
@@ -38,9 +38,19 @@ class AppRouter {
 
       // ── Business Routes ───────────────────────────
       GoRoute(path: '/business/dashboard', builder: (c, s) => const BusinessDashboardScreen()),
+      GoRoute(path: '/business/create', builder: (c, s) => const CreateShipmentScreen()),
+      GoRoute(path: '/business/track', builder: (c, s) => const TrackScreen()),
       GoRoute(
         path: '/business/track/:id',
-        builder: (c, s) => TrackShipmentScreen(shipmentId: s.pathParameters['id'] ?? 'SH001'),
+        builder: (c, s) => TrackShipmentScreen(shipmentId: s.pathParameters['id'] ?? ''),
+      ),
+      GoRoute(
+        path: '/business/update/:id',
+        builder: (c, s) => UpdateStatusScreen(shipmentId: s.pathParameters['id'] ?? 'SH001'),
+      ),
+      GoRoute(
+        path: '/business/epod/:id',
+        builder: (c, s) => UploadEPODScreen(shipmentId: s.pathParameters['id'] ?? 'SH001'),
       ),
       GoRoute(path: '/business/trust-score', builder: (c, s) => const TrustScoreScreen()),
       GoRoute(path: '/business/risk-report', builder: (c, s) => const AIRiskReportScreen()),
@@ -48,13 +58,17 @@ class AppRouter {
 
       // ── Transporter Routes ────────────────────────
       GoRoute(path: '/transporter/dashboard', builder: (c, s) => const TransporterDashboardScreen()),
-      GoRoute(path: '/transporter/create-shipment', builder: (c, s) => const CreateShipmentScreen()),
+      GoRoute(path: '/transporter/marketplace', builder: (c, s) => const TransporterMarketplaceScreen()),
+      GoRoute(path: '/transporter/create', builder: (c, s) => const CreateShipmentScreen()),
       GoRoute(
-        path: '/transporter/update-status/:id',
-        builder: (c, s) => UpdateStatusScreen(shipmentId: s.pathParameters['id'] ?? 'SH001'),
+        path: '/transporter/update-status/:shipmentId',
+        builder: (context, state) {
+          final shipmentId = state.pathParameters['shipmentId']!;
+          return UpdateStatusScreen(shipmentId: shipmentId);
+        },
       ),
       GoRoute(
-        path: '/transporter/upload-epod/:id',
+        path: '/transporter/epod/:id',
         builder: (c, s) => UploadEPODScreen(shipmentId: s.pathParameters['id'] ?? 'SH001'),
       ),
 

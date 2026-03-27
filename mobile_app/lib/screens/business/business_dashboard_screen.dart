@@ -1,9 +1,30 @@
 import 'package:flutter/material.dart';
 import '../../widgets/app_layout.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../providers/user_provider.dart';
+import '../../providers/business_shipment_provider.dart';
+import '../../models/shipment_status.dart';
 
-class BusinessDashboardScreen extends StatelessWidget {
+class BusinessDashboardScreen extends StatefulWidget {
   const BusinessDashboardScreen({super.key});
+
+  @override
+  State<BusinessDashboardScreen> createState() => _BusinessDashboardScreenState();
+}
+
+class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final uid = context.read<UserProvider>().user?.uid;
+      final role = context.read<UserProvider>().user?.role;
+      if (uid != null && uid.isNotEmpty && role == 'business') {
+        context.read<BusinessShipmentProvider>().listenShipments(uid);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,10 +53,10 @@ class BusinessDashboardScreen extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                _buildStatCard('Active Shipments', '12', 'In transit & pickup', Icons.inventory_2, Colors.blue),
-                _buildStatCard('Delivered', '45', 'On time delivery', Icons.check_circle, Colors.green),
-                _buildTrustScoreCard('85'),
-                _buildStatCard('Risk Alerts', '2', 'Requires attention', Icons.warning_amber_rounded, Colors.red),
+                _buildStatCard('Active Shipments', context.watch<BusinessShipmentProvider>().activeShipmentsCount.toString(), 'In transit & pickup', Icons.inventory_2, Colors.blue),
+                _buildStatCard('Delivered', context.watch<BusinessShipmentProvider>().completedShipmentsCount.toString(), 'On time delivery', Icons.check_circle, Colors.green),
+                _buildTrustScoreCard(context.watch<BusinessShipmentProvider>().averageTrustScore.toStringAsFixed(0)),
+                _buildStatCard('Risk Alerts', context.watch<BusinessShipmentProvider>().riskAlertsCount.toString(), 'Requires attention', Icons.warning_amber_rounded, Colors.red),
               ],
             ),
             
@@ -60,42 +81,91 @@ class BusinessDashboardScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(color: Colors.grey.shade200),
               ),
-              child: ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: 3,
-                separatorBuilder: (context, index) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  return ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    title: const Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('LR-00123', style: TextStyle(fontWeight: FontWeight.bold)),
-                        Chip(
-                          label: Text('In Transit', style: TextStyle(color: Colors.white, fontSize: 12)),
-                          backgroundColor: Colors.blue,
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        const Text('Mumbai → Delhi', style: TextStyle(color: Colors.black87)),
-                        const SizedBox(height: 8),
-                        Row(
+              child: Consumer<BusinessShipmentProvider>(
+                builder: (context, provider, child) {
+                  if (provider.isLoading && provider.shipments.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (provider.error != null) {
+                    final isPreparing = provider.error == "Preparing shipment database, please wait...";
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('Trust Score: ', style: TextStyle(fontSize: 12)),
-                            Text('88', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                            Icon(isPreparing ? Icons.storage : Icons.error_outline, 
+                              color: isPreparing ? Colors.blue : Colors.red, size: 48),
+                            const SizedBox(height: 16),
+                            Text(provider.error!,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: isPreparing ? Colors.blue.shade700 : Colors.red, fontWeight: FontWeight.bold)
+                            ),
+                            if (isPreparing) const Padding(
+                              padding: EdgeInsets.only(top: 16),
+                              child: LinearProgressIndicator(),
+                            )
                           ],
                         ),
-                      ],
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.go('/business/track/SH001'),
+                      ),
+                    );
+                  }
+                  
+                  final shipments = provider.shipments;
+                  if (shipments.isEmpty) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text("No shipments found", style: TextStyle(color: Colors.black54)),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: shipments.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final shipment = shipments[index];
+                      final statusColor = _getStatusColor(shipment.status);
+                      final statusLabel = _getStatusLabel(shipment.status);
+                      
+                      return ListTile(
+                        contentPadding: const EdgeInsets.all(16),
+                        title: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(shipment.lrNumber, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Chip(
+                              label: Text(statusLabel, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                              backgroundColor: statusColor,
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text('${shipment.fromCity} → ${shipment.toCity}', style: const TextStyle(color: Colors.black87)),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Text('Trust Score: ', style: TextStyle(fontSize: 12)),
+                                Text(shipment.trustScore.toStringAsFixed(0), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                              ],
+                            ),
+                          ],
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.go('/business/track/${shipment.shipmentId}'),
+                      );
+                    },
                   );
                 },
               ),
@@ -107,6 +177,8 @@ class BusinessDashboardScreen extends StatelessWidget {
             const Text('Quick Actions', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             
+            _buildActionCard(context, 'Create Shipment', 'Generate digital LR/bilty', Icons.add_circle, Colors.orange, '/business/create'),
+            const SizedBox(height: 8),
             _buildActionCard(context, 'View Trust Scores', 'Monitor partner ratings', Icons.trending_up, Colors.blue, '/business/trust-score'),
             const SizedBox(height: 8),
             _buildActionCard(context, 'AI Risk Report', 'View AI insights', Icons.warning_amber, Colors.purple, '/business/risk-report'),
@@ -216,5 +288,27 @@ class BusinessDashboardScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Color _getStatusColor(ShipmentStatus status) {
+    switch (status) {
+      case ShipmentStatus.pending: return Colors.grey;
+      case ShipmentStatus.assigned: return Colors.cyan;
+      case ShipmentStatus.created: return Colors.orange;
+      case ShipmentStatus.inTransit: return Colors.blue;
+      case ShipmentStatus.delivered: return Colors.green;
+      case ShipmentStatus.delayed: return Colors.red;
+    }
+  }
+
+  String _getStatusLabel(ShipmentStatus status) {
+    switch (status) {
+      case ShipmentStatus.pending: return 'Pending';
+      case ShipmentStatus.assigned: return 'Assigned';
+      case ShipmentStatus.created: return 'Created';
+      case ShipmentStatus.inTransit: return 'In Transit';
+      case ShipmentStatus.delivered: return 'Delivered';
+      case ShipmentStatus.delayed: return 'Delayed';
+    }
   }
 }

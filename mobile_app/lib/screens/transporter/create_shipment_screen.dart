@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../widgets/app_layout.dart';
-import '../../services/shipment_service.dart';
+import '../../providers/business_shipment_provider.dart';
 import '../../providers/user_provider.dart';
 
 class CreateShipmentScreen extends StatefulWidget {
@@ -38,10 +38,9 @@ class _CreateShipmentScreenState extends State<CreateShipmentScreen> {
     }
 
     try {
-      final lrNumber = await ShipmentService().createShipment(
+      final lrNumber = await context.read<BusinessShipmentProvider>().createShipment(
         fromCity: _originController.text.trim(),
         toCity: _destinationController.text.trim(),
-        transporterId: uid,
       );
 
       if (!mounted) return;
@@ -49,13 +48,13 @@ class _CreateShipmentScreenState extends State<CreateShipmentScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Shipment created! LR Number: $lrNumber'), backgroundColor: Colors.green),
       );
-      context.go('/transporter/dashboard');
+      final role = context.read<UserProvider>().user?.role ?? 'transporter';
+      context.go(role == 'business' ? '/business/dashboard' : '/transporter/dashboard');
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     }
-    context.go('/transporter/dashboard');
   }
 
   @override

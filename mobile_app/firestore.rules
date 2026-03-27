@@ -1,0 +1,23 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /shipments/{shipmentId} {
+      allow read: if request.auth != null && (
+        resource.data.businessId == request.auth.uid || 
+        resource.data.transporterId == request.auth.uid ||
+        resource.data.transporterId == "" ||
+        resource.data.transporterId == null
+      );
+      
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if false;
+    }
+    
+    // Default blocks for other schemas
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

@@ -3,27 +3,46 @@ import '../../widgets/app_layout.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
-import '../../providers/shipment_provider.dart';
+import '../../providers/transporter_shipment_provider.dart';
 import '../../models/shipment_model.dart';
+import '../../models/shipment_status.dart';
 
-class TransporterDashboardScreen extends StatelessWidget {
+class TransporterDashboardScreen extends StatefulWidget {
   const TransporterDashboardScreen({super.key});
+
+  @override
+  State<TransporterDashboardScreen> createState() => _TransporterDashboardScreenState();
+}
+
+class _TransporterDashboardScreenState extends State<TransporterDashboardScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final uid = context.read<UserProvider>().user?.uid;
+      if (uid != null && uid.isNotEmpty) {
+        context.read<TransporterShipmentProvider>().listenShipments(uid);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return AppLayout(
       role: 'transporter',
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (ScrollNotification scrollInfo) {
-          if (scrollInfo.metrics.pixels == scrollInfo.metrics.maxScrollExtent) {
-             context.read<ShipmentProvider>().loadMore();
-          }
-          return false;
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Consumer<UserProvider>(
-            builder: (context, userProvider, _) {
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(16),
+        child: Consumer<UserProvider>(
+          builder: (context, userProvider, _) {
             final user = userProvider.user;
             final transporterId = user?.uid ?? '';
             
@@ -48,9 +67,9 @@ class TransporterDashboardScreen extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                _buildStatCard('Active Shipments', '8', 'In transit & pickup', Icons.inventory_2, Colors.blue),
-                _buildStatCard('Completed', '24', 'This month', Icons.check_circle, Colors.green),
-                _buildStatCard('Trust Score', '85', '', Icons.star, Colors.purple, showProgress: true, progressValue: 0.85),
+                _buildStatCard('Active Shipments', context.watch<TransporterShipmentProvider>().activeShipmentsCount.toString(), 'In transit & pickup', Icons.inventory_2, Colors.blue),
+                _buildStatCard('Completed', context.watch<TransporterShipmentProvider>().completedShipmentsCount.toString(), 'This month', Icons.check_circle, Colors.green),
+                _buildStatCard('Trust Score', context.watch<TransporterShipmentProvider>().averageTrustScore.toStringAsFixed(0), '', Icons.star, Colors.purple, showProgress: true, progressValue: (context.watch<TransporterShipmentProvider>().averageTrustScore / 100).clamp(0.0, 1.0)),
                 _buildStatCard('On-Time Rate', '92%', 'Above average', Icons.trending_up, Colors.green),
               ],
             ),
@@ -60,27 +79,27 @@ class TransporterDashboardScreen extends StatelessWidget {
             // Quick Action Card
             Card(
               elevation: 4,
-              shadowColor: Colors.green.withOpacity(0.4),
+              shadowColor: Colors.blue.withOpacity(0.4),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF22C55E), Color(0xFF16A34A)], // green-500 to green-600
+                    colors: [Color(0xFF3B82F6), Color(0xFF2563EB)], // blue-500 to blue-600
                   ),
                 ),
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Create New Shipment', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                    const Text('Load Marketplace', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    const Text('Generate digital LR/bilty and start tracking', style: TextStyle(color: Color(0xFFDCFCE7))),
+                    const Text('Find and accept new shipments', style: TextStyle(color: Color(0xFFDBEAFE))),
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
-                      onPressed: () => context.go('/transporter/create-shipment'),
-                      icon: const Icon(Icons.add_circle, color: Color(0xFF16A34A)),
-                      label: const Text('Create Shipment', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.bold)),
+                      onPressed: () => context.go('/transporter/marketplace'),
+                      icon: const Icon(Icons.local_shipping, color: Color(0xFF2563EB)),
+                      label: const Text('View Open Loads', style: TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -115,13 +134,39 @@ class TransporterDashboardScreen extends StatelessWidget {
               ),
               child: transporterId.isEmpty
                   ? const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Authenticating...')))
-                  : Consumer<ShipmentProvider>(
+                  : Consumer<TransporterShipmentProvider>(
                       builder: (context, shipmentProvider, child) {
                         if (shipmentProvider.isLoading && shipmentProvider.shipments.isEmpty) {
-                          return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()));
+                          return Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: List.generate(3, (index) => _buildSkeletonCard()),
+                            ),
+                          );
                         }
                         if (shipmentProvider.error != null) {
-                          return Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Error: ${shipmentProvider.error}')));
+                          final isPreparing = shipmentProvider.error == "Preparing shipment database, please wait...";
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(isPreparing ? Icons.storage : Icons.error_outline, 
+                                    color: isPreparing ? Colors.blue : Colors.red, size: 48),
+                                  const SizedBox(height: 16),
+                                  Text(shipmentProvider.error!,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: isPreparing ? Colors.blue.shade700 : Colors.red, fontWeight: FontWeight.bold)
+                                  ),
+                                  if (isPreparing) const Padding(
+                                    padding: EdgeInsets.only(top: 16),
+                                    child: LinearProgressIndicator(),
+                                  )
+                                ],
+                              ),
+                            ),
+                          );
                         }
                         
                         final shipments = shipmentProvider.shipments;
@@ -172,14 +217,16 @@ class TransporterDashboardScreen extends StatelessWidget {
                                   const SizedBox(height: 16),
                                   Row(
                                     children: [
-                                      OutlinedButton(
-                                        onPressed: () => context.go('/transporter/update-status/${shipment.shipmentId}'),
-                                        style: OutlinedButton.styleFrom(
-                                          visualDensity: VisualDensity.compact,
+                                      if (shipment.status != ShipmentStatus.delivered) ...[
+                                        OutlinedButton(
+                                          onPressed: () => context.go('/transporter/update-status/${shipment.shipmentId}'),
+                                          style: OutlinedButton.styleFrom(
+                                            visualDensity: VisualDensity.compact,
+                                          ),
+                                          child: const Text('Update Status'),
                                         ),
-                                        child: const Text('Update Status'),
-                                      ),
-                                      const SizedBox(width: 8),
+                                        const SizedBox(width: 8),
+                                      ],
                                       ElevatedButton(
                                         onPressed: () => context.go('/transporter/upload-epod/${shipment.shipmentId}'),
                                         style: ElevatedButton.styleFrom(
@@ -200,10 +247,11 @@ class TransporterDashboardScreen extends StatelessWidget {
                     ),
             ),
             
-            if (context.watch<ShipmentProvider>().isLoading && context.watch<ShipmentProvider>().shipments.isNotEmpty)
-               const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
-            
-            const SizedBox(height: 24),
+            if (context.watch<TransporterShipmentProvider>().isLoading && context.watch<TransporterShipmentProvider>().shipments.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Center(child: CircularProgressIndicator()),
+              ),           const SizedBox(height: 24),
 
             // Performance Metrics
             const Text('Your Performance', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
@@ -236,6 +284,33 @@ class TransporterDashboardScreen extends StatelessWidget {
         },
       ),
       ),
+    );
+  }
+
+  Widget _buildSkeletonCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(width: 120, height: 20, color: Colors.grey.shade200),
+              Container(width: 80, height: 24, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12))),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(width: MediaQuery.of(context).size.width * 0.6, height: 16, color: Colors.grey.shade200),
+          const SizedBox(height: 8),
+          Container(width: MediaQuery.of(context).size.width * 0.4, height: 16, color: Colors.grey.shade200),
+        ],
       ),
     );
   }
@@ -292,21 +367,25 @@ class TransporterDashboardScreen extends StatelessWidget {
     );
   }
 
-  Color _getStatusColor(String status) {
+  Color _getStatusColor(ShipmentStatus status) {
     switch (status) {
-      case 'created': return Colors.orange; // matches yellow requested via orange enum/shade
-      case 'in_transit': return Colors.blue;
-      case 'delivered': return Colors.green;
-      default: return Colors.grey;
+      case ShipmentStatus.pending: return Colors.grey;
+      case ShipmentStatus.assigned: return Colors.cyan;
+      case ShipmentStatus.created: return Colors.orange;
+      case ShipmentStatus.inTransit: return Colors.blue;
+      case ShipmentStatus.delivered: return Colors.green;
+      case ShipmentStatus.delayed: return Colors.red;
     }
   }
 
-  String _getStatusLabel(String status) {
+  String _getStatusLabel(ShipmentStatus status) {
     switch (status) {
-      case 'created': return 'Created';
-      case 'in_transit': return 'In Transit';
-      case 'delivered': return 'Delivered';
-      default: return status.toUpperCase();
+      case ShipmentStatus.pending: return 'Pending';
+      case ShipmentStatus.assigned: return 'Assigned';
+      case ShipmentStatus.created: return 'Created';
+      case ShipmentStatus.inTransit: return 'In Transit';
+      case ShipmentStatus.delivered: return 'Delivered';
+      case ShipmentStatus.delayed: return 'Delayed';
     }
   }
 }

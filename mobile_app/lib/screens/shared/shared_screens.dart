@@ -3,6 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../services/firebase_service.dart';
+import '../../providers/user_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -37,7 +40,7 @@ class NotificationsScreen extends StatelessWidget {
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               leading: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
                 child: Icon(n['icon'] as IconData, color: color, size: 22),
               ),
               title: Row(children: [
@@ -134,7 +137,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     'Sign Out',
                     () async {
                       await FirebaseAuth.instance.signOut();
-                      if (mounted) context.go('/role-selection');
+                      if (!mounted) return;
+                      // ignore: use_build_context_synchronously
+                      context.go('/role-selection');
                     },
                     color: Colors.red,
                   ),
@@ -159,7 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(children: [
         CircleAvatar(
           radius: 44,
-          backgroundColor: const Color(0xFF2563EB).withOpacity(0.1),
+          backgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.1),
           child: Text(
             name[0].toUpperCase(),
             style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
@@ -194,63 +199,109 @@ class ShipmentHistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shipments = [
-      {'lr': 'LR-00456', 'from': 'Mumbai', 'to': 'Delhi', 'date': '24 Mar 2026', 'status': 'Delivered', 'score': 92},
-      {'lr': 'LR-00399', 'from': 'Pune', 'to': 'Chennai', 'date': '18 Mar 2026', 'status': 'Delivered', 'score': 78},
-      {'lr': 'LR-00312', 'from': 'Delhi', 'to': 'Kolkata', 'date': '10 Mar 2026', 'status': 'Delivered', 'score': 85},
-      {'lr': 'LR-00278', 'from': 'Bangalore', 'to': 'Hyderabad', 'date': '5 Mar 2026', 'status': 'Delayed', 'score': 55},
-    ];
-
+    final user = context.watch<UserProvider>().user;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Shipment History', style: TextStyle(fontWeight: FontWeight.bold)),
         leading: BackButton(onPressed: () => context.pop()),
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: shipments.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, i) {
-          final s = shipments[i];
-          final score = s['score'] as int;
-          final scoreColor = score >= 80 ? Colors.green : score >= 60 ? Colors.orange : Colors.red;
-          final isDelivered = s['status'] == 'Delivered';
-          return Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text(s['lr'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  Chip(
-                    label: Text(s['status'] as String, style: const TextStyle(color: Colors.white, fontSize: 11)),
-                    backgroundColor: isDelivered ? Colors.green : Colors.red,
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                  ),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  const Icon(Icons.location_on, size: 14, color: Colors.black38),
-                  Text(' ${s['from']} → ${s['to']}', style: const TextStyle(color: Colors.black54)),
-                ]),
-                const SizedBox(height: 8),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Row(children: [
-                    const Icon(Icons.calendar_today, size: 13, color: Colors.black38),
-                    Text(' ${s['date']}', style: const TextStyle(color: Colors.black45, fontSize: 12)),
-                  ]),
-                  Row(children: [
-                    const Text('Trust: ', style: TextStyle(color: Colors.black45, fontSize: 12)),
-                    Text('$score', style: TextStyle(fontWeight: FontWeight.bold, color: scoreColor)),
-                  ]),
-                ]),
-              ]),
+      body: user == null
+          ? const Center(child: CircularProgressIndicator())
+          : StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('shipments')
+                  .where(user.role == 'business' ? 'businessId' : 'transporterId', isEqualTo: user.uid)
+                  .where('status', isEqualTo: 'delivered')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+                }
+
+                final docs = snapshot.data?.docs ?? [];
+                if (docs.isEmpty) {
+                  return const Center(
+                    child: Text('No delivered shipments found in history.', style: TextStyle(color: Colors.black54)),
+                  );
+                }
+
+                // Sort in memory to avoid requiring a composite index right away
+                docs.sort((a, b) {
+                  final dataA = a.data() as Map<String, dynamic>;
+                  final dataB = b.data() as Map<String, dynamic>;
+                  final tA = dataA['createdAt']?.toString() ?? '';
+                  final tB = dataB['createdAt']?.toString() ?? '';
+                  return tB.compareTo(tA); // Descending
+                });
+
+                return ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) {
+                    final data = docs[i].data() as Map<String, dynamic>;
+                    final score = (data['trustScore'] as num?)?.toInt() ?? 0;
+                    final scoreColor = score >= 80 ? Colors.green : score >= 60 ? Colors.orange : Colors.red;
+                    final lrNumber = data['lrNumber'] as String? ?? 'Unknown';
+                    final fromCity = data['fromCity'] as String? ?? 'N/A';
+                    final toCity = data['toCity'] as String? ?? 'N/A';
+                    final statusStr = data['status'] as String? ?? 'Unknown';
+                    // Parse date
+                    String dateStr = 'Unknown Date';
+                    if (data['createdAt'] != null) {
+                      try {
+                        DateTime dt;
+                        if (data['createdAt'] is Timestamp) {
+                          dt = (data['createdAt'] as Timestamp).toDate();
+                        } else {
+                          dt = DateTime.parse(data['createdAt'].toString());
+                        }
+                        dateStr = DateFormat('dd MMM yyyy').format(dt);
+                      } catch (_) {}
+                    }
+
+                    return Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                            Text(lrNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Chip(
+                              label: Text(statusStr.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 11)),
+                              backgroundColor: Colors.green, // because we filtered by delivered
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            ),
+                          ]),
+                          const SizedBox(height: 8),
+                          Row(children: [
+                            const Icon(Icons.location_on, size: 14, color: Colors.black38),
+                            Text(' $fromCity → $toCity', style: const TextStyle(color: Colors.black54)),
+                          ]),
+                          const SizedBox(height: 8),
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                            Row(children: [
+                              const Icon(Icons.calendar_today, size: 13, color: Colors.black38),
+                              Text(' $dateStr', style: const TextStyle(color: Colors.black45, fontSize: 12)),
+                            ]),
+                            Row(children: [
+                              const Text('Trust: ', style: TextStyle(color: Colors.black45, fontSize: 12)),
+                              Text('$score', style: TextStyle(fontWeight: FontWeight.bold, color: scoreColor)),
+                            ]),
+                          ]),
+                        ]),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }

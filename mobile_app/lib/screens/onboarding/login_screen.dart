@@ -79,8 +79,13 @@ class _LoginScreenState extends State<LoginScreen> {
         await _ensureUserProvisioned(cred.user!);
       }
       if (!mounted) return;
-      _showSnackBar('${_mode == AuthMode.login ? 'Login' : 'Registration'} successful!');
-      context.go(widget.role == 'business' ? '/business/dashboard' : '/transporter/dashboard');
+      final actualRole = context.read<UserProvider>().user?.role ?? widget.role;
+      if (actualRole != widget.role) {
+        _showSnackBar('You are registered as a $actualRole. Redirecting...');
+      } else {
+        _showSnackBar('${_mode == AuthMode.login ? 'Login' : 'Registration'} successful!');
+      }
+      context.go(actualRole == 'business' ? '/business/dashboard' : '/transporter/dashboard');
     } on FirebaseAuthException catch (e) {
       setState(() => _isLoading = false);
       final msg = switch (e.code) {
@@ -149,8 +154,13 @@ class _LoginScreenState extends State<LoginScreen> {
       await _ensureUserProvisioned(userCred.user!);
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showSnackBar('Login successful!');
-      context.go(widget.role == 'business' ? '/business/dashboard' : '/transporter/dashboard');
+      final actualRole = context.read<UserProvider>().user?.role ?? widget.role;
+      if (actualRole != widget.role) {
+        _showSnackBar('You are registered as a $actualRole. Redirecting...');
+      } else {
+        _showSnackBar('Login successful!');
+      }
+      context.go(actualRole == 'business' ? '/business/dashboard' : '/transporter/dashboard');
     } on FirebaseAuthException catch (e) {
       setState(() => _isLoading = false);
       _showSnackBar(
@@ -176,6 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       debugPrint('Error provisioning user: $e');
       if (mounted) _showSnackBar('Error setting up user profile: $e', isError: true);
+      rethrow;
     }
   }
 

@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../widgets/app_layout.dart';
-import '../../providers/shipment_provider.dart';
+import '../../providers/transporter_shipment_provider.dart';
+import '../../providers/user_provider.dart';
 
 class UploadEPODScreen extends StatefulWidget {
   final String shipmentId;
@@ -13,25 +16,35 @@ class UploadEPODScreen extends StatefulWidget {
 }
 
 class _UploadEPODScreenState extends State<UploadEPODScreen> {
-  bool _photoUploaded = false;
+  File? _photoFile;
   bool _signatureCapured = false;
   final _remarksController = TextEditingController();
   bool _isLoading = false;
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
+    if (pickedFile != null) {
+      if (!mounted) return;
+      setState(() => _photoFile = File(pickedFile.path));
+    }
+  }
+
   void _submit() async {
-    if (!_photoUploaded) {
+    if (_photoFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload the delivery photo.'), backgroundColor: Colors.red));
       return;
     }
     setState(() => _isLoading = true);
     try {
-      await context.read<ShipmentProvider>().uploadEPOD(widget.shipmentId, remarks: _remarksController.text.trim());
+      await context.read<TransporterShipmentProvider>().uploadEPOD(widget.shipmentId, _photoFile!, remarks: _remarksController.text.trim());
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('ePOD uploaded successfully! Shipment marked as Delivered.'), backgroundColor: Colors.green),
       );
-      context.go('/transporter/dashboard');
+      final role = context.read<UserProvider>().user?.role ?? 'transporter';
+      context.go(role == 'business' ? '/business/dashboard' : '/transporter/dashboard');
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -68,21 +81,24 @@ class _UploadEPODScreenState extends State<UploadEPODScreen> {
           const Text('Delivery Photo *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 10),
           GestureDetector(
-            onTap: () => setState(() => _photoUploaded = true),
+            onTap: _pickImage,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               height: 160,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _photoUploaded ? Colors.green : Colors.grey.shade300, width: 2, style: BorderStyle.solid),
-                color: _photoUploaded ? Colors.green.shade50 : Colors.grey.shade50,
+                border: Border.all(color: _photoFile != null ? Colors.green : Colors.grey.shade300, width: 2, style: BorderStyle.solid),
+                color: _photoFile != null ? Colors.green.shade50 : Colors.grey.shade50,
+                image: _photoFile != null
+                    ? DecorationImage(image: FileImage(_photoFile!), fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.3), BlendMode.darken))
+                    : null,
               ),
-              child: _photoUploaded
+              child: _photoFile != null
                   ? const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.check_circle, color: Colors.green, size: 40),
+                      Icon(Icons.check_circle, color: Colors.white, size: 40),
                       SizedBox(height: 8),
-                      Text('Photo Ready', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                      Text('Tap to change', style: TextStyle(color: Colors.black38, fontSize: 12)),
+                      Text('Photo Ready', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text('Tap to retake', style: TextStyle(color: Colors.white70, fontSize: 12)),
                     ])
                   : const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Icon(Icons.camera_alt, color: Colors.black38, size: 40),

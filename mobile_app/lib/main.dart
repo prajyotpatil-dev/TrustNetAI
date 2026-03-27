@@ -6,7 +6,8 @@ import 'theme/app_theme.dart';
 import 'routes/app_router.dart';
 import 'services/firebase_service.dart';
 import 'providers/user_provider.dart';
-import 'providers/shipment_provider.dart';
+import 'providers/business_shipment_provider.dart';
+import 'providers/transporter_shipment_provider.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -30,16 +31,13 @@ void main() async {
           create: (context) => UserProvider(context.read<FirebaseService>()),
           update: (context, firebaseService, previous) => previous ?? UserProvider(firebaseService),
         ),
-        ChangeNotifierProxyProvider<UserProvider, ShipmentProvider>(
-          create: (_) => ShipmentProvider(),
-          update: (_, userProvider, shipmentProvider) {
-            final provider = shipmentProvider ?? ShipmentProvider();
-            final uid = userProvider.user?.uid;
-            if (uid != null && uid.isNotEmpty) {
-              provider.listenShipments(uid);
-            }
-            return provider;
-          },
+        ChangeNotifierProxyProvider<UserProvider, BusinessShipmentProvider>(
+          create: (_) => BusinessShipmentProvider(),
+          update: (_, userProvider, provider) => provider ?? BusinessShipmentProvider(),
+        ),
+        ChangeNotifierProxyProvider<UserProvider, TransporterShipmentProvider>(
+          create: (_) => TransporterShipmentProvider(),
+          update: (_, userProvider, provider) => provider ?? TransporterShipmentProvider(),
         ),
       ],
       child: const TrustNetApp(),
