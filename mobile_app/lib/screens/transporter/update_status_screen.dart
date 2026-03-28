@@ -6,6 +6,7 @@ import '../../providers/transporter_shipment_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../models/shipment_status.dart';
 import '../../services/location_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class UpdateStatusScreen extends StatefulWidget {
   final String shipmentId;
@@ -153,8 +154,10 @@ class _UpdateStatusScreenState extends State<UpdateStatusScreen> {
               ),
               if (_trackingError != null)
                 TextButton(
-                  onPressed: _startTracking,
-                  child: const Text('Retry'),
+                  onPressed: _trackingError!.toLowerCase().contains('settings')
+                      ? () => openAppSettings()
+                      : _startTracking,
+                  child: Text(_trackingError!.toLowerCase().contains('settings') ? 'Settings' : 'Retry'),
                 ),
             ]),
           ),
