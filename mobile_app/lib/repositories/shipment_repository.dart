@@ -1,14 +1,25 @@
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter/foundation.dart';
 import '../models/shipment_model.dart';
 import '../models/shipment_status.dart';
 import '../services/firestore_shipment_service.dart';
 import '../services/lr_generator_service.dart';
+import '../services/trust_score_service.dart';
+import '../services/fraud_detection_service.dart';
+import '../services/delay_detection_service.dart';
+import '../services/eta_service.dart';
 
 class ShipmentRepository {
   final FirestoreShipmentService _firestoreService = FirestoreShipmentService();
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final LRGeneratorService _lrGeneratorService = LRGeneratorService();
+  final TrustScoreService _trustScoreService = TrustScoreService();
+  final FraudDetectionService _fraudDetectionService = FraudDetectionService();
+  final DelayDetectionService _delayDetectionService = DelayDetectionService();
+  final ETAService _etaService = ETAService();
 
   Stream<List<ShipmentModel>> streamShipmentsByTransporter(String transporterId, {int limit = 20, bool fallbackNoOrder = false}) {
     return _firestoreService.streamShipmentsByTransporter(transporterId, limit: limit, fallbackNoOrder: fallbackNoOrder).map(
@@ -33,9 +44,16 @@ class ShipmentRepository {
     required String toCity,
     String? transporterId,
     String? businessId,
+    double? distanceKm,
   }) async {
     final newId = _firestoreService.getNewDocId();
     final lrNumber = await _lrGeneratorService.generateLRNumber('TR');
+
+    // Auto-calculate expected delivery if distance is provided
+    DateTime? expectedDelivery;
+    if (distanceKm != null && distanceKm > 0) {
+      expectedDelivery = _delayDetectionService.estimateDeliveryTime(distanceKm: distanceKm);
+    }
 
     final shipment = ShipmentModel(
       shipmentId: newId,
@@ -45,8 +63,11 @@ class ShipmentRepository {
       status: transporterId == null ? ShipmentStatus.pending : ShipmentStatus.created,
       transporterId: transporterId,
       businessId: businessId,
+      trustScore: 50.0, // Start with a neutral score
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
+      expectedDelivery: expectedDelivery,
+      distanceKm: distanceKm,
     );
 
     await _firestoreService.saveShipment(shipment);
@@ -66,51 +87,134 @@ class ShipmentRepository {
     });
   }
 
-  double calculateTrustScore(ShipmentStatus currentStatus, ShipmentStatus newStatus, double currentScore) {
-    if (currentStatus == newStatus) return currentScore;
-    if (newStatus == ShipmentStatus.delivered) return currentScore + 5.0;
-    if (newStatus == ShipmentStatus.delayed) return currentScore - 10.0;
-    return currentScore;
+  /// Enhanced trust score calculation using AI Trust Score Service
+  Future<double> calculateTrustScore(String shipmentId, ShipmentStatus newStatus) async {
+    final docSnap = await _firestoreService.getShipmentDocRef(shipmentId).get();
+    if (!docSnap.exists) return 0.0;
+
+    final data = docSnap.data() as Map<String, dynamic>?;
+    if (data == null) return 0.0;
+
+    final hasEpod = data['epodUrl'] != null && (data['epodUrl'] as String).isNotEmpty;
+    final wasDelayed = data['delayDetectedAt'] != null || newStatus == ShipmentStatus.delayed;
+    final currentLocation = data['currentLocation'] as Map<String, dynamic>?;
+    final gpsReliability = currentLocation != null ? 90.0 : 50.0;
+
+    return _trustScoreService.calculateShipmentTrustScore(
+      wasOnTime: !wasDelayed && newStatus == ShipmentStatus.delivered,
+      hasEpod: hasEpod,
+      gpsAccuracyPercent: gpsReliability,
+      wasDelayed: wasDelayed,
+    );
   }
 
   Future<void> updateStatus(String shipmentId, ShipmentStatus newStatus, {String? remarks}) async {
     final docSnap = await _firestoreService.getShipmentDocRef(shipmentId).get();
     if (!docSnap.exists) throw Exception("Shipment missing.");
-    
-    final data = docSnap.data() as Map<String,dynamic>?;
-    final currentScore = (data?['trustScore'] as num?)?.toDouble() ?? 0.0;
-    final String statusStr = data?['status'] as String? ?? 'created';
-    final currentStatus = ShipmentStatusExtension.fromString(statusStr);
-    
-    final newScore = calculateTrustScore(currentStatus, newStatus, currentScore);
 
-    await _firestoreService.updateShipment(shipmentId, {
+    final data = docSnap.data() as Map<String, dynamic>?;
+    final currentScore = (data?['trustScore'] as num?)?.toDouble() ?? 50.0;
+
+    // Calculate new trust score using AI engine
+    double newScore = currentScore;
+    if (newStatus == ShipmentStatus.delivered) {
+      newScore = await _trustScoreService.quickScoreUpdate(shipmentId, delivered: true);
+    } else if (newStatus == ShipmentStatus.delayed) {
+      newScore = await _trustScoreService.quickScoreUpdate(shipmentId, delayed: true);
+    }
+
+    final updateData = <String, dynamic>{
       'status': newStatus.firestoreValue,
       'trustScore': newScore,
       if (remarks != null && remarks.isNotEmpty) 'remarks': remarks,
-    });
+    };
+
+    // Mark delay detection timestamp
+    if (newStatus == ShipmentStatus.delayed && data?['delayDetectedAt'] == null) {
+      updateData['delayDetectedAt'] = DateTime.now().toIso8601String();
+    }
+
+    await _firestoreService.updateShipment(shipmentId, updateData);
+
+    // Recalculate transporter aggregate score
+    final transporterId = data?['transporterId'] as String?;
+    if (transporterId != null) {
+      _trustScoreService.recalculateAndStore(transporterId);
+    }
   }
 
   Future<void> uploadEPOD(String shipmentId, File imageFile, {String? remarks}) async {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final path = 'epod/$shipmentId/$timestamp.jpg';
     final ref = _storage.ref().child(path);
-    
+
     await ref.putFile(imageFile);
     final downloadUrl = await ref.getDownloadURL();
 
-    final docSnap = await _firestoreService.getShipmentDocRef(shipmentId).get();
-    if (!docSnap.exists) throw Exception("Shipment missing.");
+    // ── Compute image hash for fraud detection ────────────────────────────
+    final imageBytes = await imageFile.readAsBytes();
+    final imageHash = sha256.convert(imageBytes).toString();
 
-    final data = docSnap.data() as Map<String,dynamic>?;
-    final currentScore = (data?['trustScore'] as num?)?.toDouble() ?? 0.0;
-    final newScore = currentScore + 10.0; // Bonus for successful ePOD
+    // ── Capture geo-tagged metadata ──────────────────────────────────────
+    Map<String, dynamic> proofMetadata = {
+      'proofImage': downloadUrl,
+      'timestamp': DateTime.now().toIso8601String(),
+      'imageHash': imageHash,
+    };
+
+    // Try to get current location for geo-tagging
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 5),
+      );
+      proofMetadata['lat'] = position.latitude;
+      proofMetadata['lng'] = position.longitude;
+    } catch (e) {
+      debugPrint('[ShipmentRepo] Could not geo-tag ePOD: $e');
+    }
+
+    // ── Check for image reuse fraud ──────────────────────────────────────
+    await _fraudDetectionService.runAllChecks(
+      shipmentId: shipmentId,
+      imageHash: imageHash,
+    );
+
+    // ── Update shipment with ePOD + trust score boost ────────────────────
+    final newScore = await _trustScoreService.quickScoreUpdate(
+      shipmentId,
+      epodUploaded: true,
+      delivered: true,
+    );
 
     await _firestoreService.updateShipment(shipmentId, {
       'epodUrl': downloadUrl,
+      'proofMetadata': proofMetadata,
       'status': ShipmentStatus.delivered.firestoreValue,
       'trustScore': newScore,
       if (remarks != null && remarks.isNotEmpty) 'remarks': remarks,
     });
+
+    // Recalculate transporter aggregate
+    final docSnap = await _firestoreService.getShipmentDocRef(shipmentId).get();
+    final transporterId = (docSnap.data() as Map<String, dynamic>?)?['transporterId'] as String?;
+    if (transporterId != null) {
+      _trustScoreService.recalculateAndStore(transporterId);
+    }
+  }
+
+  /// Get transporter analytics stats
+  Future<Map<String, dynamic>> getTransporterStats(String transporterId) async {
+    return _trustScoreService.calculateTransporterTrustScore(transporterId);
+  }
+
+  /// Get predictive ETA display string
+  String getPredictiveETA(double distanceKm, {double avgSpeed = 45.0}) {
+    return _etaService.getETADisplay(distanceKm: distanceKm, avgSpeedKmh: avgSpeed);
+  }
+
+  /// Get traffic condition for display
+  String getTrafficCondition() {
+    return _etaService.getTrafficCondition();
   }
 }

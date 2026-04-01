@@ -8,13 +8,12 @@ import 'services/firebase_service.dart';
 import 'providers/user_provider.dart';
 import 'providers/business_shipment_provider.dart';
 import 'providers/transporter_shipment_provider.dart';
+import 'providers/ai_provider.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Try initializing Firebase. If it fails (missing options), we fallback gracefully
-  // so the UI can still be previewed during development.
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -38,6 +37,10 @@ void main() async {
         ChangeNotifierProxyProvider<UserProvider, TransporterShipmentProvider>(
           create: (_) => TransporterShipmentProvider(),
           update: (_, userProvider, provider) => provider ?? TransporterShipmentProvider(),
+        ),
+        // AI Provider — Central intelligence layer
+        ChangeNotifierProvider<AIProvider>(
+          create: (_) => AIProvider(),
         ),
       ],
       child: const TrustNetApp(),

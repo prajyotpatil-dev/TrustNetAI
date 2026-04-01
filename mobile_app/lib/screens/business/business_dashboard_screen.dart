@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/business_shipment_provider.dart';
+import '../../providers/ai_provider.dart';
 import '../../models/shipment_status.dart';
 
 class BusinessDashboardScreen extends StatefulWidget {
@@ -22,6 +23,15 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
       final role = context.read<UserProvider>().user?.role;
       if (uid != null && uid.isNotEmpty && role == 'business') {
         context.read<BusinessShipmentProvider>().listenShipments(uid);
+
+        // Run full AI scan
+        final provider = context.read<BusinessShipmentProvider>();
+        context.read<AIProvider>().runFullBusinessScan(
+          businessId: uid,
+          totalShipments: provider.shipments.length,
+          activeShipments: provider.activeShipmentsCount,
+          avgTrustScore: provider.averageTrustScore,
+        );
       }
     });
   }
@@ -43,20 +53,57 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
               'Welcome back, Business User',
               style: TextStyle(fontSize: 16, color: Color(0xFF475569)),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // ── AI Insight Banner ────────────────────────────────────────
+            Consumer<AIProvider>(
+              builder: (context, ai, _) {
+                if (ai.dashboardInsight == null && !ai.isLoadingInsight) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Card(
+                    elevation: 0,
+                    color: const Color(0xFFF5F3FF),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.auto_awesome, color: Colors.purple, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ai.isLoadingInsight
+                                ? const Text('AI is analyzing...', style: TextStyle(color: Colors.purple, fontStyle: FontStyle.italic, fontSize: 13))
+                                : Text(
+                                    ai.dashboardInsight ?? '',
+                                    style: const TextStyle(color: Colors.purple, fontWeight: FontWeight.w500, fontSize: 13),
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
 
             // Stats Grid
             GridView.count(
               crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               children: [
                 _buildStatCard('Active Shipments', context.watch<BusinessShipmentProvider>().activeShipmentsCount.toString(), 'In transit & pickup', Icons.inventory_2, Colors.blue),
                 _buildStatCard('Delivered', context.watch<BusinessShipmentProvider>().completedShipmentsCount.toString(), 'On time delivery', Icons.check_circle, Colors.green),
                 _buildTrustScoreCard(context.watch<BusinessShipmentProvider>().averageTrustScore.toStringAsFixed(0)),
-                _buildStatCard('Risk Alerts', context.watch<BusinessShipmentProvider>().riskAlertsCount.toString(), 'Requires attention', Icons.warning_amber_rounded, Colors.red),
+                Consumer<AIProvider>(
+                  builder: (context, ai, _) {
+                    final riskCount = context.watch<BusinessShipmentProvider>().riskAlertsCount + ai.fraudAlertCount;
+                    return _buildStatCard('Risk Alerts', '$riskCount', 'Delays + Fraud', Icons.warning_amber_rounded, Colors.red);
+                  },
+                ),
               ],
             ),
             
@@ -68,7 +115,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
               children: [
                 const Text('Active Shipments', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () => context.go('/business/track'),
                   child: const Text('View All'),
                 ),
               ],
@@ -127,19 +174,30 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                   return ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: shipments.length,
+                    itemCount: shipments.length > 5 ? 5 : shipments.length,
                     separatorBuilder: (context, index) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final shipment = shipments[index];
                       final statusColor = _getStatusColor(shipment.status);
                       final statusLabel = _getStatusLabel(shipment.status);
+                      final hasFraud = shipment.fraudFlags.isNotEmpty;
                       
                       return ListTile(
                         contentPadding: const EdgeInsets.all(16),
                         title: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(shipment.lrNumber, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Text(shipment.lrNumber, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  if (hasFraud) ...[
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.gpp_bad, color: Colors.red, size: 16),
+                                  ],
+                                ],
+                              ),
+                            ),
                             Chip(
                               label: Text(statusLabel, style: const TextStyle(color: Colors.white, fontSize: 12)),
                               backgroundColor: statusColor,
@@ -157,7 +215,15 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                             Row(
                               children: [
                                 const Text('Trust Score: ', style: TextStyle(fontSize: 12)),
-                                Text(shipment.trustScore.toStringAsFixed(0), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                                Text(shipment.trustScore.toStringAsFixed(0),
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _scoreColor(shipment.trustScore))),
+                                if (shipment.speed > 0) ...[
+                                  const SizedBox(width: 12),
+                                  Icon(Icons.speed, size: 14, color: Colors.green.shade600),
+                                  const SizedBox(width: 2),
+                                  Text('${shipment.speed.toStringAsFixed(0)} km/h',
+                                    style: TextStyle(fontSize: 12, color: Colors.green.shade600)),
+                                ],
                               ],
                             ),
                           ],
@@ -177,13 +243,15 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
             const Text('Quick Actions', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             
-            _buildActionCard(context, 'Create Shipment', 'Generate digital LR/bilty', Icons.add_circle, Colors.orange, '/business/create'),
+            _buildActionCard(context, 'Create Shipment', 'Generate digital LR with QR code', Icons.add_circle, Colors.orange, '/business/create'),
             const SizedBox(height: 8),
-            _buildActionCard(context, 'View Trust Scores', 'Monitor partner ratings', Icons.trending_up, Colors.blue, '/business/trust-score'),
+            _buildActionCard(context, 'Smart Assignment', 'AI-recommended transporters', Icons.psychology, Colors.purple, '/business/smart-assign'),
             const SizedBox(height: 8),
-            _buildActionCard(context, 'AI Risk Report', 'View AI insights', Icons.warning_amber, Colors.purple, '/business/risk-report'),
+            _buildActionCard(context, 'View Trust Scores', 'AI-weighted partner ratings', Icons.trending_up, Colors.blue, '/business/trust-score'),
             const SizedBox(height: 8),
-            _buildActionCard(context, 'Network Trust', 'Partner network view', Icons.hub, Colors.green, '/business/network-trust'),
+            _buildActionCard(context, 'AI Risk Report', 'Fraud detection & delay alerts', Icons.warning_amber, Colors.red, '/business/risk-report'),
+            const SizedBox(height: 8),
+            _buildActionCard(context, 'Network Trust', 'GNN partner network view', Icons.hub, Colors.green, '/business/network-trust'),
             
             const SizedBox(height: 24),
           ],
@@ -221,7 +289,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
   }
 
   Widget _buildTrustScoreCard(String scoreStr) {
-    int score = int.parse(scoreStr);
+    final score = double.tryParse(scoreStr) ?? 0;
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -241,11 +309,11 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                 Icon(Icons.shield, size: 16, color: Colors.green),
               ],
             ),
-            Text(scoreStr, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.green)),
+            Text(scoreStr, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: _scoreColor(score))),
             LinearProgressIndicator(
               value: score / 100,
               backgroundColor: Colors.grey.shade200,
-              color: Colors.green,
+              color: _scoreColor(score),
             ),
           ],
         ),
@@ -270,7 +338,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: color),
@@ -310,5 +378,11 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
       case ShipmentStatus.delivered: return 'Delivered';
       case ShipmentStatus.delayed: return 'Delayed';
     }
+  }
+
+  Color _scoreColor(double score) {
+    if (score >= 80) return Colors.green;
+    if (score >= 60) return Colors.orange;
+    return Colors.red;
   }
 }

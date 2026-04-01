@@ -9,6 +9,14 @@ class UserModel {
   final String? gstin;
   final DateTime createdAt;
 
+  // ── AI / Trust Analytics Fields ────────────────────────────────────────
+  final double trustScore;
+  final int completedTrips;
+  final double onTimeRate;       // 0.0–100.0 percentage
+  final int totalDelays;
+  final double epodComplianceRate; // 0.0–100.0 percentage
+  final double gpsReliability;     // 0.0–100.0 percentage
+
   UserModel({
     required this.uid,
     required this.role,
@@ -17,6 +25,12 @@ class UserModel {
     required this.phone,
     this.gstin,
     required this.createdAt,
+    this.trustScore = 0.0,
+    this.completedTrips = 0,
+    this.onTimeRate = 100.0,
+    this.totalDelays = 0,
+    this.epodComplianceRate = 0.0,
+    this.gpsReliability = 100.0,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map, String id) {
@@ -32,6 +46,12 @@ class UserModel {
               ? (map['createdAt'] as Timestamp).toDate()
               : DateTime.tryParse(map['createdAt'].toString()) ?? DateTime.now())
           : DateTime.now(),
+      trustScore: (map['trustScore'] as num?)?.toDouble() ?? 0.0,
+      completedTrips: (map['completedTrips'] as num?)?.toInt() ?? 0,
+      onTimeRate: (map['onTimeRate'] as num?)?.toDouble() ?? 100.0,
+      totalDelays: (map['totalDelays'] as num?)?.toInt() ?? 0,
+      epodComplianceRate: (map['epodComplianceRate'] as num?)?.toDouble() ?? 0.0,
+      gpsReliability: (map['gpsReliability'] as num?)?.toDouble() ?? 100.0,
     );
   }
 
@@ -44,6 +64,12 @@ class UserModel {
       'phone': phone,
       if (gstin != null) 'gstin': gstin,
       'createdAt': createdAt.toIso8601String(),
+      'trustScore': trustScore,
+      'completedTrips': completedTrips,
+      'onTimeRate': onTimeRate,
+      'totalDelays': totalDelays,
+      'epodComplianceRate': epodComplianceRate,
+      'gpsReliability': gpsReliability,
     };
   }
 }

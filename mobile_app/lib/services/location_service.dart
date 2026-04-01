@@ -2,13 +2,22 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'fraud_detection_service.dart';
 
 /// LocationService
 /// - Handles GPS permission using Geolocator
 /// - Streams real-time updates to Firestore
+/// - Enhanced with speed, heading, and fraud detection
 class LocationService {
   StreamSubscription<Position>? _positionStreamSubscription;
   String? _currentShipmentId;
+
+  // Previous position tracking for fraud detection
+  double? _prevLat;
+  double? _prevLng;
+  DateTime? _prevTimestamp;
+
+  final FraudDetectionService _fraudDetection = FraudDetectionService();
 
   static final LocationService _instance = LocationService._internal();
   factory LocationService() => _instance;
@@ -42,6 +51,9 @@ class LocationService {
 
     stopTracking();
     _currentShipmentId = shipmentId;
+    _prevLat = null;
+    _prevLng = null;
+    _prevTimestamp = null;
 
     await checkPermissions();
 
@@ -67,8 +79,6 @@ class LocationService {
     }
 
     // ── Real-Time Stream ────────────────────────────────────────────────────
-    // bestForNavigation uses all available sensors (GPS + network + barometer)
-    // distanceFilter: 5 m → update every 5 m moved (more precise than 10 m)
     const LocationSettings locationSettings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
       distanceFilter: 5,
@@ -79,8 +89,6 @@ class LocationService {
     ).listen(
       (Position position) {
         // ── GPS Drift Filter ─────────────────────────────────────────────────
-        // Ignore readings where the device reports > 20 m horizontal error.
-        // This prevents the marker from jumping off-road during weak signal.
         if (position.accuracy > 20) {
           debugPrint('[LocationService] Ignoring inaccurate reading: ${position.accuracy}m accuracy');
           return;
@@ -101,12 +109,56 @@ class LocationService {
     _positionStreamSubscription?.cancel();
     _positionStreamSubscription = null;
     _currentShipmentId = null;
+    _prevLat = null;
+    _prevLng = null;
+    _prevTimestamp = null;
   }
 
   bool get isTracking => _positionStreamSubscription != null;
 
   Future<void> _writeLocation(String shipmentId, Position position) async {
     try {
+      // Convert speed from m/s to km/h
+      final speedKmh = position.speed >= 0 ? position.speed * 3.6 : 0.0;
+
+      // ── Fraud Detection ──────────────────────────────────────────────────
+      if (_prevLat != null && _prevLng != null && _prevTimestamp != null) {
+        final timeDelta = DateTime.now().difference(_prevTimestamp!).inMinutes;
+
+        // Check for GPS jump
+        final gpsFlag = _fraudDetection.detectGPSJump(
+          prevLat: _prevLat!,
+          prevLng: _prevLng!,
+          currentLat: position.latitude,
+          currentLng: position.longitude,
+          timeDeltaMinutes: timeDelta > 0 ? timeDelta : 1,
+        );
+        if (gpsFlag != null) {
+          debugPrint('[LocationService] FRAUD DETECTED: $gpsFlag');
+          _fraudDetection.runAllChecks(
+            shipmentId: shipmentId,
+            prevLat: _prevLat,
+            prevLng: _prevLng,
+            currentLat: position.latitude,
+            currentLng: position.longitude,
+            timeDeltaMinutes: timeDelta > 0 ? timeDelta : 1,
+            speedKmh: speedKmh,
+          );
+        }
+
+        // Check for unrealistic speed
+        final speedFlag = _fraudDetection.detectUnrealisticSpeed(speedKmh);
+        if (speedFlag != null) {
+          debugPrint('[LocationService] SPEED ANOMALY: $speedFlag');
+        }
+      }
+
+      // Update previous position
+      _prevLat = position.latitude;
+      _prevLng = position.longitude;
+      _prevTimestamp = DateTime.now();
+
+      // ── Write to Firestore ─────────────────────────────────────────────
       await FirebaseFirestore.instance
           .collection('shipments')
           .doc(shipmentId)
@@ -116,10 +168,13 @@ class LocationService {
           'lng': position.longitude,
           'updatedAt': FieldValue.serverTimestamp(),
         },
+        'speed': speedKmh,
+        'heading': position.heading,
       });
-      debugPrint('[LocationService] Updated location: ${position.latitude}, ${position.longitude}');
+
+      debugPrint('[LocationService] Updated: ${position.latitude}, ${position.longitude} @ ${speedKmh.toStringAsFixed(1)}km/h');
     } catch (e) {
-      debugPrint('[LocationService] Firestore write failed (possibly no internet): $e');
+      debugPrint('[LocationService] Firestore write failed: $e');
     }
   }
 }

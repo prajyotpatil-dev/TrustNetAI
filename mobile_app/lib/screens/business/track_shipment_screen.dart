@@ -13,6 +13,7 @@ import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import '../../widgets/app_layout.dart';
 import '../../models/shipment_model.dart';
 import '../../models/shipment_status.dart';
+import '../../services/eta_service.dart';
 
 class TrackShipmentScreen extends StatefulWidget {
   final String shipmentId;
@@ -39,11 +40,19 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
   // --- Custom Markers ---
   BitmapDescriptor? truckIcon;
 
+  // --- AI Enhancement State ---
+  final ETAService _etaService = ETAService();
+  double _liveSpeed = 0.0;
+  List<String> _fraudFlags = [];
+  String _trafficCondition = '';
+  int _trafficConditionColor = 0xFF1976D2;
+
   @override
   void initState() {
     super.initState();
     loadTruckIcon();
     listenToFirestore();
+    _updateTrafficCondition();
   }
 
   @override
@@ -53,19 +62,20 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
     super.dispose();
   }
 
+  void _updateTrafficCondition() {
+    setState(() {
+      _trafficCondition = _etaService.getTrafficCondition();
+      _trafficConditionColor = _etaService.getTrafficConditionColor();
+    });
+  }
+
   // --- ASSET LOADER ---
   Future<BitmapDescriptor> getResizedMarker(String path) async {
     final ByteData data = await rootBundle.load(path);
     final Uint8List bytes = data.buffer.asUint8List();
-
-    final codec = await ui.instantiateImageCodec(
-      bytes,
-      targetWidth: 80 // adjust between 60–100 for best size
-    );
-
+    final codec = await ui.instantiateImageCodec(bytes, targetWidth: 80);
     final frame = await codec.getNextFrame();
     final resizedBytes = await frame.image.toByteData(format: ui.ImageByteFormat.png);
-
     return BitmapDescriptor.fromBytes(resizedBytes!.buffer.asUint8List());
   }
 
@@ -87,14 +97,22 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
       .listen((doc) {
         if (!doc.exists || !mounted) return;
         final data = doc.data();
-        if (data != null && data['currentLocation'] != null) {
-          final loc = data['currentLocation'];
-          if (loc['lat'] != null && loc['lng'] != null) {
-            LatLng newPos = LatLng(
-              (loc['lat'] as num).toDouble(), 
-              (loc['lng'] as num).toDouble()
-            );
-            animateTruck(newPos);
+        if (data != null) {
+          // Read live speed and fraud flags
+          setState(() {
+            _liveSpeed = (data['speed'] as num?)?.toDouble() ?? 0.0;
+            _fraudFlags = (data['fraudFlags'] as List<dynamic>?)?.cast<String>() ?? [];
+          });
+
+          if (data['currentLocation'] != null) {
+            final loc = data['currentLocation'];
+            if (loc['lat'] != null && loc['lng'] != null) {
+              LatLng newPos = LatLng(
+                (loc['lat'] as num).toDouble(),
+                (loc['lng'] as num).toDouble(),
+              );
+              animateTruck(newPos);
+            }
           }
         }
       });
@@ -108,8 +126,7 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
       return;
     }
 
-    // Skip if position hasn't actually shifted
-    if (currentPosition!.latitude == newPosition.latitude && 
+    if (currentPosition!.latitude == newPosition.latitude &&
         currentPosition!.longitude == newPosition.longitude) {
       return;
     }
@@ -117,7 +134,7 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
     previousPosition = currentPosition;
     currentPosition = newPosition;
 
-    const int animationDuration = 1000; // 1 second exact transition
+    const int animationDuration = 1000;
     const int steps = 60;
     int currentStep = 0;
 
@@ -130,7 +147,6 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
         return;
       }
 
-      // Easing multiplier (Curve)
       double t = currentStep / steps;
       double eased = Curves.easeInOut.transform(t);
 
@@ -139,7 +155,6 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
 
       LatLng interpolatedPosition = LatLng(lat, lng);
       updateMarker(interpolatedPosition);
-
       currentStep++;
     });
   }
@@ -149,7 +164,6 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
     setState(() {
       isGpsReady = true;
       markers.removeWhere((m) => m.markerId.value == "truck");
-      
       markers.add(
         Marker(
           markerId: const MarkerId("truck"),
@@ -162,17 +176,13 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
       );
     });
 
-    // Smooth camera tracking exactly aligned to interpolated coordinates
-    mapController?.animateCamera(
-      CameraUpdate.newLatLng(position),
-    );
+    mapController?.animateCamera(CameraUpdate.newLatLng(position));
   }
 
   double getRotation() {
     if (previousPosition == null || currentPosition == null) return 0;
     double deltaLng = currentPosition!.longitude - previousPosition!.longitude;
     double deltaLat = currentPosition!.latitude - previousPosition!.latitude;
-    
     return atan2(deltaLng, deltaLat) * (180 / pi);
   }
 
@@ -205,15 +215,12 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
               )
             );
           });
-          debugPrint("ETA fetched: $duration");
         }
-      } else {
-        debugPrint("Directions API Error: ${data['status']} - ${data['error_message']}");
       }
     } catch(e) {
       debugPrint("Error fetching ETA and Route: $e");
     } finally {
-      if (mounted) setState(() => _isFetchingRoute = true); 
+      if (mounted) setState(() => _isFetchingRoute = true);
     }
   }
 
@@ -240,7 +247,7 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
           final data = snapshot.data!.data() as Map<String, dynamic>;
           final shipment = ShipmentModel.fromMap(data, snapshot.data!.id);
 
-          // Trigger one-time ETA/Polyline draw accurately against the very first Remote coordinates
+          // Trigger one-time ETA/Polyline
           if (currentPosition != null && !_isFetchingRoute && shipment.toCity.isNotEmpty) {
             _isFetchingRoute = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -255,26 +262,58 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
               children: [
                 Row(
                   children: [
-                    IconButton(
-                        onPressed: () => context.pop(),
-                        icon: const Icon(Icons.arrow_back)),
+                    IconButton(onPressed: () => context.pop(), icon: const Icon(Icons.arrow_back)),
                     Expanded(
                       child: Text('Shipment #${shipment.lrNumber}',
                           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                           overflow: TextOverflow.ellipsis),
                     ),
+                    // QR Code Button
+                    IconButton(
+                      onPressed: () => context.push('/business/qr/${widget.shipmentId}'),
+                      icon: const Icon(Icons.qr_code, color: Color(0xFF2563EB)),
+                      tooltip: 'View QR Code',
+                    ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+
+                // ── Fraud Alert Banner ─────────────────────────────────
+                if (_fraudFlags.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.gpp_bad, color: Colors.red),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('⚠ Fraud Alert', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                              ...(_fraudFlags.take(2).map((f) => Text(f, style: const TextStyle(fontSize: 12, color: Colors.red)))),
+                              if (_fraudFlags.length > 2)
+                                Text('+${_fraudFlags.length - 2} more alerts', style: TextStyle(fontSize: 11, color: Colors.red.shade300)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 _buildStatusCard(shipment),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 // ── Live Map ──────────────────────────────────────────────
                 Card(
                   elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey.shade200)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: SizedBox(
@@ -282,78 +321,78 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
                       child: Stack(
                         children: [
                           GoogleMap(
-                            initialCameraPosition: const CameraPosition(
-                              target: LatLng(20.5937, 78.9629),
-                              zoom: 5,
-                            ),
+                            initialCameraPosition: const CameraPosition(target: LatLng(20.5937, 78.9629), zoom: 5),
                             myLocationEnabled: true,
                             myLocationButtonEnabled: true,
                             markers: markers,
-                            polylines: polylines, 
+                            polylines: polylines,
                             onMapCreated: (controller) {
                               mapController = controller;
-                              // Upon controller mount, jump straight to the current truck pos 
                               if (currentPosition != null) {
-                                mapController?.animateCamera(
-                                  CameraUpdate.newLatLngZoom(currentPosition!, 15),
-                                );
+                                mapController?.animateCamera(CameraUpdate.newLatLngZoom(currentPosition!, 15));
                               }
                             },
                           ),
-                          
                           // Awaiting GPS Overlay
                           if (!isGpsReady)
                             Positioned(
-                              top: 8,
-                              left: 8,
+                              top: 8, left: 8,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(color: Colors.grey.shade700, borderRadius: BorderRadius.circular(20)),
+                                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                                  SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                                  SizedBox(width: 8),
+                                  Text('Awaiting Transporter GPS', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                ]),
+                              ),
+                            ),
+                          // ETA + Speed Overlay
+                          if (etaTime != null || _liveSpeed > 0)
+                            Positioned(
+                              bottom: 16, left: 16,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade700,
-                                  borderRadius: BorderRadius.circular(20),
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
                                 ),
-                                child: const Row(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    SizedBox(
-                                      width: 14, height: 14, 
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'Awaiting Transporter GPS',
-                                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                                    ),
+                                    if (etaTime != null)
+                                      Row(mainAxisSize: MainAxisSize.min, children: [
+                                        const Icon(Icons.timer, color: Color(0xFF2563EB), size: 18),
+                                        const SizedBox(width: 6),
+                                        Text('ETA: $etaTime', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                      ]),
+                                    if (_liveSpeed > 0) ...[
+                                      const SizedBox(height: 4),
+                                      Row(mainAxisSize: MainAxisSize.min, children: [
+                                        const Icon(Icons.speed, color: Colors.green, size: 18),
+                                        const SizedBox(width: 6),
+                                        Text('${_liveSpeed.toStringAsFixed(0)} km/h', style: const TextStyle(fontSize: 13, color: Colors.green, fontWeight: FontWeight.w600)),
+                                      ]),
+                                    ],
                                   ],
                                 ),
                               ),
                             ),
-
-                            // ETA Overlay Overlay
-                            if (etaTime != null)
-                              Positioned(
-                                bottom: 16,
-                                left: 16,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.timer, color: Color(0xFF2563EB), size: 20),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'ETA: $etaTime',
-                                        style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold),
-                                      ),
-                                    ],
-                                  ),
+                          // Traffic Badge
+                          if (_trafficCondition.isNotEmpty)
+                            Positioned(
+                              top: 8, right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Color(_trafficConditionColor),
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
+                                child: Text(_trafficCondition, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                               ),
+                            ),
                         ],
                       ),
                     ),
@@ -370,9 +409,7 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
                 const SizedBox(height: 12),
                 Card(
                   elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey.shade200)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(children: [
@@ -380,6 +417,8 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
                       _detailRow('Origin', shipment.fromCity),
                       _detailRow('Destination', shipment.toCity),
                       _detailRow('Status', _getStatusLabel(shipment.status)),
+                      _detailRow('Speed', '${_liveSpeed.toStringAsFixed(0)} km/h'),
+                      _detailRow('Traffic', _trafficCondition, valueColor: Color(_trafficConditionColor)),
                       if (currentPosition != null) ...[
                         _detailRow('Last Lat', currentPosition!.latitude.toStringAsFixed(5)),
                         _detailRow('Last Lng', currentPosition!.longitude.toStringAsFixed(5)),
@@ -389,6 +428,10 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
                       _detailRow('Trust Score', '${shipment.trustScore.toStringAsFixed(0)}/100',
                           valueColor: _scoreColor(shipment.trustScore)),
                       _detailRow('Created', _formatDate(shipment.createdAt)),
+                      if (shipment.expectedDelivery != null)
+                        _detailRow('Expected Delivery', _formatDate(shipment.expectedDelivery!)),
+                      if (_fraudFlags.isNotEmpty)
+                        _detailRow('Fraud Flags', '${_fraudFlags.length} detected', valueColor: Colors.red),
                     ]),
                   ),
                 ),

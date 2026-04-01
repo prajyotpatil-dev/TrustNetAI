@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../widgets/app_layout.dart';
 import '../../providers/transporter_shipment_provider.dart';
 import '../../providers/user_provider.dart';
@@ -17,9 +18,42 @@ class UploadEPODScreen extends StatefulWidget {
 
 class _UploadEPODScreenState extends State<UploadEPODScreen> {
   File? _photoFile;
-  bool _signatureCapured = false;
+  bool _signatureCaptured = false;
   final _remarksController = TextEditingController();
   bool _isLoading = false;
+
+  // ── Geo-tagging state ─────────────────────────────────────────────────
+  double? _capturedLat;
+  double? _capturedLng;
+  bool _isCapturingLocation = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _captureLocation();
+  }
+
+  Future<void> _captureLocation() async {
+    setState(() => _isCapturingLocation = true);
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+      if (mounted) {
+        setState(() {
+          _capturedLat = position.latitude;
+          _capturedLng = position.longitude;
+          _isCapturingLocation = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCapturingLocation = false);
+      }
+      debugPrint('[ePOD] Failed to capture location: $e');
+    }
+  }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
@@ -27,28 +61,41 @@ class _UploadEPODScreenState extends State<UploadEPODScreen> {
     if (pickedFile != null) {
       if (!mounted) return;
       setState(() => _photoFile = File(pickedFile.path));
+      // Re-capture location when photo is taken
+      _captureLocation();
     }
   }
 
   void _submit() async {
     if (_photoFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload the delivery photo.'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please upload the delivery photo.'), backgroundColor: Colors.red),
+      );
       return;
     }
     setState(() => _isLoading = true);
     try {
-      await context.read<TransporterShipmentProvider>().uploadEPOD(widget.shipmentId, _photoFile!, remarks: _remarksController.text.trim());
+      await context.read<TransporterShipmentProvider>().uploadEPOD(
+        widget.shipmentId,
+        _photoFile!,
+        remarks: _remarksController.text.trim(),
+      );
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ePOD uploaded successfully! Shipment marked as Delivered.'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('ePOD uploaded successfully! Shipment marked as Delivered. Trust Score updated.'),
+          backgroundColor: Colors.green,
+        ),
       );
       final role = context.read<UserProvider>().user?.role ?? 'transporter';
       context.go(role == 'business' ? '/business/dashboard' : '/transporter/dashboard');
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -60,24 +107,66 @@ class _UploadEPODScreenState extends State<UploadEPODScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Upload ePOD', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-          Text('Electronic Proof of Delivery · #${widget.shipmentId}', style: const TextStyle(color: Colors.black54)),
-          const SizedBox(height: 20),
-          // Info card
+          Text('Electronic Proof of Delivery · #${widget.shipmentId}',
+              style: const TextStyle(color: Colors.black54)),
+          const SizedBox(height: 16),
+
+          // ── AI Info Card ─────────────────────────────────────────────
           Card(
             color: const Color(0xFFEFF6FF),
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
+            child: const Padding(
+              padding: EdgeInsets.all(14),
               child: Row(children: [
-                const Icon(Icons.info_outline, color: Color(0xFF2563EB)),
-                const SizedBox(width: 10),
-                Expanded(child: const Text('Upload a geo-tagged photo and receiver signature to complete delivery and boost your Trust Score.', style: TextStyle(color: Color(0xFF1E40AF), fontSize: 13))),
+                Icon(Icons.auto_awesome, color: Color(0xFF2563EB)),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'AI will auto-verify your proof: geo-tag location, compute image hash for fraud detection, and update your Trust Score.',
+                    style: TextStyle(color: Color(0xFF1E40AF), fontSize: 12),
+                  ),
+                ),
               ]),
             ),
           ),
-          const SizedBox(height: 24),
-          // Upload Photo
+          const SizedBox(height: 16),
+
+          // ── Location Capture Status ─────────────────────────────────
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _capturedLat != null ? const Color(0xFFECFDF5) : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _capturedLat != null ? Colors.green.shade300 : Colors.grey.shade300,
+              ),
+            ),
+            child: Row(children: [
+              Icon(
+                _capturedLat != null ? Icons.location_on : Icons.location_searching,
+                color: _capturedLat != null ? Colors.green : Colors.grey,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _isCapturingLocation
+                    ? const Text('Capturing GPS location...', style: TextStyle(fontSize: 13, color: Colors.black54))
+                    : _capturedLat != null
+                        ? Text(
+                            'Location: ${_capturedLat!.toStringAsFixed(5)}, ${_capturedLng!.toStringAsFixed(5)}',
+                            style: TextStyle(fontSize: 13, color: Colors.green.shade800, fontWeight: FontWeight.w500),
+                          )
+                        : const Text('Location unavailable', style: TextStyle(fontSize: 13, color: Colors.black54)),
+              ),
+              if (_isCapturingLocation)
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            ]),
+          ),
+          const SizedBox(height: 20),
+
+          // ── Upload Photo ────────────────────────────────────────────
           const Text('Delivery Photo *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 10),
           GestureDetector(
@@ -87,10 +176,17 @@ class _UploadEPODScreenState extends State<UploadEPODScreen> {
               height: 160,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _photoFile != null ? Colors.green : Colors.grey.shade300, width: 2, style: BorderStyle.solid),
+                border: Border.all(
+                  color: _photoFile != null ? Colors.green : Colors.grey.shade300,
+                  width: 2,
+                ),
                 color: _photoFile != null ? Colors.green.shade50 : Colors.grey.shade50,
                 image: _photoFile != null
-                    ? DecorationImage(image: FileImage(_photoFile!), fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.3), BlendMode.darken))
+                    ? DecorationImage(
+                        image: FileImage(_photoFile!),
+                        fit: BoxFit.cover,
+                        colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.3), BlendMode.darken),
+                      )
                     : null,
               ),
               child: _photoFile != null
@@ -104,25 +200,26 @@ class _UploadEPODScreenState extends State<UploadEPODScreen> {
                       Icon(Icons.camera_alt, color: Colors.black38, size: 40),
                       SizedBox(height: 8),
                       Text('Tap to take photo', style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold)),
-                      Text('Photo will be geo-tagged automatically', style: TextStyle(color: Colors.black38, fontSize: 12)),
+                      Text('Photo will be geo-tagged + hash verified', style: TextStyle(color: Colors.black38, fontSize: 12)),
                     ]),
             ),
           ),
           const SizedBox(height: 20),
-          // Signature
+
+          // ── Signature ───────────────────────────────────────────────
           const Text('Receiver Signature', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 10),
           GestureDetector(
-            onTap: () => setState(() => _signatureCapured = true),
+            onTap: () => setState(() => _signatureCaptured = true),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               height: 100,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _signatureCapured ? Colors.green : Colors.grey.shade300, width: 2),
-                color: _signatureCapured ? Colors.green.shade50 : Colors.grey.shade50,
+                border: Border.all(color: _signatureCaptured ? Colors.green : Colors.grey.shade300, width: 2),
+                color: _signatureCaptured ? Colors.green.shade50 : Colors.grey.shade50,
               ),
-              child: _signatureCapured
+              child: _signatureCaptured
                   ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Icon(Icons.gesture, color: Colors.green),
                       Text('Signature Captured', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
@@ -144,7 +241,34 @@ class _UploadEPODScreenState extends State<UploadEPODScreen> {
               hintText: 'Optional delivery notes...',
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          // ── What AI Does Card ───────────────────────────────────────
+          Card(
+            elevation: 0,
+            color: const Color(0xFFF5F3FF),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: const Padding(
+              padding: EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.psychology, color: Colors.purple, size: 18),
+                    SizedBox(width: 8),
+                    Text('AI Processing on Submit', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple, fontSize: 13)),
+                  ]),
+                  SizedBox(height: 8),
+                  Text('✓ Geo-tag attached (lat/lng)', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                  Text('✓ Image hash computed (fraud detection)', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                  Text('✓ Trust Score updated (+5 for ePOD)', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                  Text('✓ Duplicate image check across shipments', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
           ElevatedButton.icon(
             onPressed: _isLoading ? null : _submit,
             icon: _isLoading

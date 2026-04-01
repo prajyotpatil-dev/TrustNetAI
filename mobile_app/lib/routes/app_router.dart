@@ -10,6 +10,8 @@ import '../screens/business/track_screen.dart';
 import '../screens/business/trust_score_screen.dart';
 import '../screens/business/ai_risk_report_screen.dart';
 import '../screens/business/network_trust_screen.dart';
+import '../screens/business/smart_assignment_screen.dart';
+import '../screens/business/shipment_qr_screen.dart';
 import '../screens/transporter/transporter_dashboard_screen.dart';
 import '../screens/transporter/create_shipment_screen.dart';
 import '../screens/transporter/transporter_marketplace_screen.dart';
@@ -55,6 +57,12 @@ class AppRouter {
       GoRoute(path: '/business/trust-score', builder: (c, s) => const TrustScoreScreen()),
       GoRoute(path: '/business/risk-report', builder: (c, s) => const AIRiskReportScreen()),
       GoRoute(path: '/business/network-trust', builder: (c, s) => const NetworkTrustScreen()),
+      // ── New AI Routes ─────────────────────────────
+      GoRoute(path: '/business/smart-assign', builder: (c, s) => const SmartAssignmentScreen()),
+      GoRoute(
+        path: '/business/qr/:id',
+        builder: (c, s) => ShipmentQRScreen(shipmentId: s.pathParameters['id'] ?? ''),
+      ),
 
       // ── Transporter Routes ────────────────────────
       GoRoute(path: '/transporter/dashboard', builder: (c, s) => const TransporterDashboardScreen()),
