@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../widgets/app_layout.dart';
 import '../../providers/ai_provider.dart';
+import '../../models/user_model.dart';
+import '../../widgets/trust_score_breakdown.dart';
 
 /// Trust Score Screen — Live Firestore data with weighted formula display
 class TrustScoreScreen extends StatelessWidget {
@@ -54,6 +56,7 @@ class TrustScoreScreen extends StatelessWidget {
               'epod': epod,
               'gps': gps,
               'delays': delays,
+              'userModel': UserModel.fromMap(data, doc.id),
             });
           }
 
@@ -220,14 +223,14 @@ class TrustScoreScreen extends StatelessWidget {
                                 ),
                               ],
 
-                              // ── Generate AI Report Button ───────────────
+                                // ── Generate AI Report Button ───────────────
                               const SizedBox(height: 10),
                               SizedBox(
                                 width: double.infinity,
                                 child: OutlinedButton.icon(
                                   onPressed: () => _showAIReport(context, t),
                                   icon: const Icon(Icons.auto_awesome, size: 16),
-                                  label: const Text('Generate AI Report', style: TextStyle(fontSize: 13)),
+                                  label: const Text('View Breakdown & AI Report', style: TextStyle(fontSize: 13)),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.purple,
                                     side: const BorderSide(color: Colors.purple),
@@ -251,6 +254,8 @@ class TrustScoreScreen extends StatelessWidget {
 
   void _showAIReport(BuildContext context, Map<String, dynamic> transporter) {
     final ai = context.read<AIProvider>();
+    final userModel = transporter['userModel'] as UserModel;
+
     ai.fetchGeminiReport(
       transporterName: transporter['name'] as String,
       trustScore: transporter['score'] as double,
@@ -323,6 +328,9 @@ class TrustScoreScreen extends StatelessWidget {
                         style: const TextStyle(fontSize: 14, height: 1.6, color: Colors.black87),
                       ),
                     ),
+                    
+                  const SizedBox(height: 24),
+                  TrustScoreBreakdownWidget(user: userModel),
                 ],
               ),
             );

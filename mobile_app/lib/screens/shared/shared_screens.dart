@@ -6,6 +6,7 @@ import '../../services/firebase_service.dart';
 import '../../providers/user_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../../utils/test_data_generator.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -132,6 +133,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _profileTile(Icons.help_outline, 'Help & Support', () => context.push('/profile/help')),
                   _profileTile(Icons.privacy_tip_outlined, 'Privacy Policy', () => context.push('/profile/privacy')),
                   const Divider(height: 1),
+                  
+                  // Hackathon tool
+                  if (_userData?['role'] == 'transporter')
+                    _profileTile(
+                      Icons.science, 
+                      'Generate Sample Data (Demo)', 
+                      () => _generateSampleData(context),
+                      color: Colors.purple,
+                    ),
+                  
                   _profileTile(
                     Icons.logout,
                     'Sign Out',
@@ -190,6 +201,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
       trailing: color == null ? const Icon(Icons.chevron_right, color: Colors.black38) : null,
       onTap: onTap,
     );
+  }
+
+  Future<void> _generateSampleData(BuildContext context) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    try {
+      await TestDataGenerator.generateSampleData(uid);
+      if (context.mounted) {
+        Navigator.pop(context); // Dismiss loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Test shipments generated successfully!')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Dismiss loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating data: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }
 

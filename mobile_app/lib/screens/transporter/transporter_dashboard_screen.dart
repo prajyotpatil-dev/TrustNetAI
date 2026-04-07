@@ -6,6 +6,7 @@ import '../../providers/user_provider.dart';
 import '../../providers/transporter_shipment_provider.dart';
 import '../../models/shipment_model.dart';
 import '../../models/shipment_status.dart';
+import '../../widgets/trust_score_breakdown.dart';
 
 class TransporterDashboardScreen extends StatefulWidget {
   const TransporterDashboardScreen({super.key});
@@ -68,9 +69,9 @@ class _TransporterDashboardScreenState extends State<TransporterDashboardScreen>
               physics: const NeverScrollableScrollPhysics(),
               children: [
                 _buildStatCard('Active Shipments', context.watch<TransporterShipmentProvider>().activeShipmentsCount.toString(), 'In transit & pickup', Icons.inventory_2, Colors.blue),
-                _buildStatCard('Completed', context.watch<TransporterShipmentProvider>().completedShipmentsCount.toString(), 'This month', Icons.check_circle, Colors.green),
-                _buildStatCard('Trust Score', context.watch<TransporterShipmentProvider>().averageTrustScore.toStringAsFixed(0), '', Icons.star, Colors.purple, showProgress: true, progressValue: (context.watch<TransporterShipmentProvider>().averageTrustScore / 100).clamp(0.0, 1.0)),
-                _buildStatCard('On-Time Rate', '92%', 'Above average', Icons.trending_up, Colors.green),
+                _buildStatCard('Completed', context.watch<TransporterShipmentProvider>().completedShipmentsCount.toString(), 'Total lifetime', Icons.check_circle, Colors.green),
+                _buildStatCard('Trust Score', (user?.trustScore ?? 0).toStringAsFixed(0), 'AI Computed', Icons.star, Colors.purple, showProgress: true, progressValue: ((user?.trustScore ?? 0) / 100).clamp(0.0, 1.0)),
+                _buildStatCard('On-Time Rate', '${(user?.onTimeRate ?? 100.0).toStringAsFixed(0)}%', 'Career avg', Icons.trending_up, Colors.green),
               ],
             ),
             
@@ -254,30 +255,28 @@ class _TransporterDashboardScreenState extends State<TransporterDashboardScreen>
               ),           const SizedBox(height: 24),
 
             // Performance Metrics
-            const Text('Your Performance', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text('Your Performance Engine', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade200),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  children: [
-                    _buildPerformanceRow('Trust Score', '85/100', 0.85, Colors.purple),
-                    const SizedBox(height: 16),
-                    _buildPerformanceRow('On-Time Delivery', '92%', 0.92, Colors.green),
-                    const SizedBox(height: 16),
-                    _buildPerformanceRow('ePOD Compliance', '96%', 0.96, Colors.blue),
-                    const SizedBox(height: 16),
-                    _buildPerformanceRow('Customer Rating', '4.8/5.0', 0.96, Colors.orange),
-                  ],
+
+            if (user != null)
+              TrustScoreBreakdownWidget(user: user),
+
+            const SizedBox(height: 16),
+            if (user != null)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => context.go('/transporter/ai-report'),
+                  icon: const Icon(Icons.psychology, color: Colors.white),
+                  label: const Text('View AI Performance Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               ),
-            ),
+
             const SizedBox(height: 24),
           ],
         );

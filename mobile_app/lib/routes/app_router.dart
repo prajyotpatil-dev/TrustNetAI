@@ -17,6 +17,7 @@ import '../screens/transporter/create_shipment_screen.dart';
 import '../screens/transporter/transporter_marketplace_screen.dart';
 import '../screens/transporter/update_status_screen.dart';
 import '../screens/transporter/upload_epod_screen.dart';
+import '../screens/transporter/ai_trust_report_screen.dart';
 // Shared Profiles & Settings
 import '../screens/shared/shared_screens.dart';
 import '../screens/profile/edit_profile_screen.dart';
@@ -79,6 +80,7 @@ class AppRouter {
         path: '/transporter/epod/:id',
         builder: (c, s) => UploadEPODScreen(shipmentId: s.pathParameters['id'] ?? 'SH001'),
       ),
+      GoRoute(path: '/transporter/ai-report', builder: (c, s) => const AITrustReportScreen()),
 
       // ── Shared Routes ─────────────────────────────
       GoRoute(path: '/notifications', builder: (c, s) => const NotificationsScreen()),

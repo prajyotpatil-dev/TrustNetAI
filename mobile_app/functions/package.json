@@ -1,0 +1,20 @@
+{
+  "name": "trustnet-functions",
+  "description": "Cloud Functions for TrustNet AI",
+  "version": "1.0.0",
+  "scripts": {
+    "serve": "firebase serve --only functions",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "18"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^11.5.0",
+    "firebase-functions": "^4.2.0",
+    "node-fetch": "^2.7.0"
+  },
+  "private": true
+}

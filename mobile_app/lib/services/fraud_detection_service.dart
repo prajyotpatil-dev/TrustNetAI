@@ -7,8 +7,8 @@ import 'package:flutter/foundation.dart';
 class FraudDetectionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// Detect impossibly large GPS jumps (teleportation fraud)
-  /// Returns a fraud flag string if detected, null otherwise
+  /// 1️⃣ TELEPORT DETECTION (CRITICAL)
+  /// If distance between two GPS points > 10 km in < 2 minutes
   String? detectGPSJump({
     required double prevLat,
     required double prevLng,
@@ -16,31 +16,44 @@ class FraudDetectionService {
     required double currentLng,
     required int timeDeltaMinutes,
   }) {
-    final distanceKm = _haversineDistance(prevLat, prevLng, currentLat, currentLng);
+    final distanceKm = calculateDistance(prevLat, prevLng, currentLat, currentLng);
 
-    // Flag if >50km in <5 minutes (impossible for a truck)
-    if (timeDeltaMinutes <= 5 && distanceKm > 50) {
-      return 'GPS_JUMP: ${distanceKm.toStringAsFixed(1)}km in ${timeDeltaMinutes}min';
-    }
-
-    // Flag if >200km in <30 minutes
-    if (timeDeltaMinutes <= 30 && distanceKm > 200) {
-      return 'GPS_TELEPORT: ${distanceKm.toStringAsFixed(1)}km in ${timeDeltaMinutes}min';
+    if (timeDeltaMinutes <= 2 && distanceKm > 10) {
+      return 'GPS Anomaly Detected';
     }
 
     return null;
   }
 
-  /// Detect unrealistic speed for a logistics truck
-  String? detectUnrealisticSpeed(double speedKmh) {
-    if (speedKmh > 150) {
-      return 'SPEED_ANOMALY: ${speedKmh.toStringAsFixed(0)}km/h (max expected: 120km/h)';
-    }
-    if (speedKmh < 0) {
-      return 'SPEED_NEGATIVE: Invalid speed ${speedKmh.toStringAsFixed(0)}km/h';
+  /// 2️⃣ SPEED CHECK
+  /// If speed > 120 km/h
+  String? detectUnrealisticSpeed(double speed, [double maxAllowed = 120]) {
+    if (speed > maxAllowed) {
+      return 'Unrealistic speed detected (${speed.toStringAsFixed(1)} km/h)';
     }
     return null;
   }
+
+  /// 3️⃣ ROUTE DEVIATION
+  /// If current location deviates > 2 km from expected route
+  String? detectRouteDeviation(double currentLat, double currentLng, double expectedLat, double expectedLng) {
+    final deviationKm = calculateDistance(currentLat, currentLng, expectedLat, expectedLng);
+    if (deviationKm > 2) {
+      return 'Route Deviation';
+    }
+    return null;
+  }
+
+  /// 4️⃣ PROOF VALIDATION
+  /// If proof location is far (>1 km) from delivery location
+  String? validateProofLocation(double proofLat, double proofLng, double deliveryLat, double deliveryLng) {
+    final distanceKm = calculateDistance(proofLat, proofLng, deliveryLat, deliveryLng);
+    if (distanceKm > 1) {
+      return 'Invalid Proof Location';
+    }
+    return null;
+  }
+
 
   /// Detect proof image reuse (same image hash used on different shipments)
   Future<String?> detectProofImageReuse(String imageHash, String currentShipmentId) async {
@@ -165,8 +178,8 @@ class FraudDetectionService {
     }
   }
 
-  /// Haversine formula — distance between two GPS coordinates in km
-  double _haversineDistance(double lat1, double lng1, double lat2, double lng2) {
+  /// Calculate distance using Haversine formula (km)
+  double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
     const earthRadiusKm = 6371.0;
     final dLat = _degToRad(lat2 - lat1);
     final dLng = _degToRad(lng2 - lng1);

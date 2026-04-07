@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 /// Gemini AI Service — Real API integration for AI-generated trust reports
 class GeminiService {
   // Replace with your actual Gemini API key
-  static const String _apiKey = 'GEMINI_API_KEY_HERE';
+  static const String _apiKey = 'AIzaSyD7fmz0wphYD6beexyLuL5vSx8EZApe-gk';
   static const String _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
@@ -109,7 +109,7 @@ Example format: "3 shipments at risk of delay — consider reassigning Delhi rou
   /// Core API call to Gemini
   Future<String> _callGemini(String prompt) async {
     try {
-      if (_apiKey == 'GEMINI_API_KEY_HERE') {
+      if (_apiKey == 'AIzaSyD7fmz0wphYD6beexyLuL5vSx8EZApe-gk') {
         return _generateFallbackReport(prompt);
       }
 

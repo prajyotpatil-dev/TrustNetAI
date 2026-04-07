@@ -24,6 +24,14 @@ class ShipmentModel {
   final double? distanceKm;     // Total route distance
   final String? remarks;
 
+  // ── Trust Score Engine Added Fields ──────────────────────────────────
+  final DateTime? assignedAt;
+  final DateTime? pickedUpAt;
+  final DateTime? deliveredAt;
+  final int gpsUpdatesCount;
+  final int? delayInMinutes;
+  final bool cancellationFlag;
+
   ShipmentModel({
     required this.shipmentId,
     required this.lrNumber,
@@ -45,6 +53,12 @@ class ShipmentModel {
     this.delayDetectedAt,
     this.distanceKm,
     this.remarks,
+    this.assignedAt,
+    this.pickedUpAt,
+    this.deliveredAt,
+    this.gpsUpdatesCount = 0,
+    this.delayInMinutes,
+    this.cancellationFlag = false,
   });
 
   factory ShipmentModel.fromMap(Map<String, dynamic> map, String id) {
@@ -69,6 +83,12 @@ class ShipmentModel {
       delayDetectedAt: map['delayDetectedAt'] != null ? _parseDateTime(map['delayDetectedAt']) : null,
       distanceKm: (map['distanceKm'] as num?)?.toDouble(),
       remarks: map['remarks'] as String?,
+      assignedAt: map['assignedAt'] != null ? _parseDateTime(map['assignedAt']) : null,
+      pickedUpAt: map['pickedUpAt'] != null ? _parseDateTime(map['pickedUpAt']) : null,
+      deliveredAt: map['deliveredAt'] != null ? _parseDateTime(map['deliveredAt']) : null,
+      gpsUpdatesCount: (map['gpsUpdatesCount'] as num?)?.toInt() ?? 0,
+      delayInMinutes: (map['delayInMinutes'] as num?)?.toInt(),
+      cancellationFlag: map['cancellationFlag'] as bool? ?? false,
     );
   }
 
@@ -100,6 +120,12 @@ class ShipmentModel {
       if (delayDetectedAt != null) 'delayDetectedAt': delayDetectedAt!.toIso8601String(),
       if (distanceKm != null) 'distanceKm': distanceKm,
       if (remarks != null) 'remarks': remarks,
+      if (assignedAt != null) 'assignedAt': assignedAt!.toIso8601String(),
+      if (pickedUpAt != null) 'pickedUpAt': pickedUpAt!.toIso8601String(),
+      if (deliveredAt != null) 'deliveredAt': deliveredAt!.toIso8601String(),
+      'gpsUpdatesCount': gpsUpdatesCount,
+      if (delayInMinutes != null) 'delayInMinutes': delayInMinutes,
+      'cancellationFlag': cancellationFlag,
     };
   }
 
@@ -124,6 +150,12 @@ class ShipmentModel {
     DateTime? delayDetectedAt,
     double? distanceKm,
     String? remarks,
+    DateTime? assignedAt,
+    DateTime? pickedUpAt,
+    DateTime? deliveredAt,
+    int? gpsUpdatesCount,
+    int? delayInMinutes,
+    bool? cancellationFlag,
   }) {
     return ShipmentModel(
       shipmentId: shipmentId ?? this.shipmentId,
@@ -145,6 +177,12 @@ class ShipmentModel {
       delayDetectedAt: delayDetectedAt ?? this.delayDetectedAt,
       distanceKm: distanceKm ?? this.distanceKm,
       remarks: remarks ?? this.remarks,
+      assignedAt: assignedAt ?? this.assignedAt,
+      pickedUpAt: pickedUpAt ?? this.pickedUpAt,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
+      gpsUpdatesCount: gpsUpdatesCount ?? this.gpsUpdatesCount,
+      delayInMinutes: delayInMinutes ?? this.delayInMinutes,
+      cancellationFlag: cancellationFlag ?? this.cancellationFlag,
     );
   }
 }

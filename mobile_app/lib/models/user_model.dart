@@ -16,6 +16,12 @@ class UserModel {
   final int totalDelays;
   final double epodComplianceRate; // 0.0–100.0 percentage
   final double gpsReliability;     // 0.0–100.0 percentage
+  
+  // ── Real AI Trust Score Added Fields ───────────────────────────────────
+  final int cancelledShipments;
+  final double avgRating;
+  final Map<String, dynamic>? trustBreakdown;
+  final String? aiReport;
 
   UserModel({
     required this.uid,
@@ -31,6 +37,10 @@ class UserModel {
     this.totalDelays = 0,
     this.epodComplianceRate = 0.0,
     this.gpsReliability = 100.0,
+    this.cancelledShipments = 0,
+    this.avgRating = 5.0,
+    this.trustBreakdown,
+    this.aiReport,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map, String id) {
@@ -52,6 +62,10 @@ class UserModel {
       totalDelays: (map['totalDelays'] as num?)?.toInt() ?? 0,
       epodComplianceRate: (map['epodComplianceRate'] as num?)?.toDouble() ?? 0.0,
       gpsReliability: (map['gpsReliability'] as num?)?.toDouble() ?? 100.0,
+      cancelledShipments: (map['cancelledShipments'] as num?)?.toInt() ?? 0,
+      avgRating: (map['avgRating'] as num?)?.toDouble() ?? 5.0,
+      trustBreakdown: map['trustBreakdown'] as Map<String, dynamic>?,
+      aiReport: map['aiReport'] as String?,
     );
   }
 
@@ -70,6 +84,10 @@ class UserModel {
       'totalDelays': totalDelays,
       'epodComplianceRate': epodComplianceRate,
       'gpsReliability': gpsReliability,
+      'cancelledShipments': cancelledShipments,
+      'avgRating': avgRating,
+      if (trustBreakdown != null) 'trustBreakdown': trustBreakdown,
+      if (aiReport != null) 'aiReport': aiReport,
     };
   }
 }
