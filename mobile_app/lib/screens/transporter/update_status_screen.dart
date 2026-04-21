@@ -85,10 +85,7 @@ class _UpdateStatusScreenState extends State<UpdateStatusScreen> {
             content: Text('Status updated successfully!'),
             backgroundColor: Colors.green),
       );
-      final role = context.read<UserProvider>().user?.role ?? 'transporter';
-      context.go(role == 'business'
-          ? '/business/dashboard'
-          : '/transporter/dashboard');
+      context.pop();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);

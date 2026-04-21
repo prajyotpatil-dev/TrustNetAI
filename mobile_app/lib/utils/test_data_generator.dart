@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/shipment_model.dart';
 import '../models/shipment_status.dart';
+import '../services/gst_verification_service.dart';
 
 class TestDataGenerator {
   static Future<void> generateSampleData(String transporterId) async {
@@ -73,6 +74,8 @@ class TestDataGenerator {
       {'avgRating': 4.8},
       SetOptions(merge: true),
     );
+    // Seed GST verification demo data
+    await GSTVerificationService.seedDemoData();
 
     print("Sample data generated successfully.");
   }

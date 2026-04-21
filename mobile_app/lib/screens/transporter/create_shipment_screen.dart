@@ -48,8 +48,7 @@ class _CreateShipmentScreenState extends State<CreateShipmentScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Shipment created! LR Number: $lrNumber'), backgroundColor: Colors.green),
       );
-      final role = context.read<UserProvider>().user?.role ?? 'transporter';
-      context.go(role == 'business' ? '/business/dashboard' : '/transporter/dashboard');
+      context.pop();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);

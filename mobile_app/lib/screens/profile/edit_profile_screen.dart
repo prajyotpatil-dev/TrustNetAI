@@ -70,46 +70,62 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Profile'),
-        actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _save,
-            child: _isSaving
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Center(
-                    child: CircleAvatar(
-                      radius: 50,
-                      backgroundColor: Color(0xFFDBEAFE),
-                      child: Icon(Icons.camera_alt, size: 32, color: Color(0xFF2563EB)),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  _buildField('Full Name', Icons.person, _nameController),
-                  const SizedBox(height: 16),
-                  _buildField('Phone Number', Icons.phone, _phoneController),
-                  const SizedBox(height: 16),
-                  if (_userData?['role'] == 'business') ...[
-                    _buildField('GSTIN', Icons.description, _gstinController),
-                    const SizedBox(height: 16),
-                  ],
-                  // Email is read-only usually because changing it requires verification
-                  _buildField('Email', Icons.email, TextEditingController(text: FirebaseAuth.instance.currentUser?.email ?? ''), readOnly: true),
-                ],
-              ),
+    return PopScope(
+      canPop: !context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && context.canPop()) {
+          context.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: context.canPop() 
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  context.pop();
+                },
+              )
+            : null,
+          title: const Text('Edit Profile'),
+          actions: [
+            TextButton(
+              onPressed: _isSaving ? null : _save,
+              child: _isSaving
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Center(
+                      child: CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Color(0xFFDBEAFE),
+                        child: Icon(Icons.camera_alt, size: 32, color: Color(0xFF2563EB)),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    _buildField('Full Name', Icons.person, _nameController),
+                    const SizedBox(height: 16),
+                    _buildField('Phone Number', Icons.phone, _phoneController),
+                    const SizedBox(height: 16),
+                    if (_userData?['role'] == 'business') ...[
+                      _buildField('GSTIN', Icons.description, _gstinController),
+                      const SizedBox(height: 16),
+                    ],
+                    // Email is read-only usually because changing it requires verification
+                    _buildField('Email', Icons.email, TextEditingController(text: FirebaseAuth.instance.currentUser?.email ?? ''), readOnly: true),
+                  ],
+                ),
+              ),
+      ),
     );
   }
 

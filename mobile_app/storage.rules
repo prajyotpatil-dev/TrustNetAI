@@ -1,0 +1,9 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // ePOD images — authenticated users only
+    match /epod/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

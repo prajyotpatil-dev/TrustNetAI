@@ -32,7 +32,7 @@ class FirestoreShipmentService {
   Stream<QuerySnapshot> streamMarketplaceShipments({int limit = 20, bool fallbackNoOrder = false}) {
     var query = _firestore
         .collection('shipments')
-        .where('transporterId', isNull: true);
+        .where('status', isEqualTo: ShipmentStatus.pending.firestoreValue);
         
     if (!fallbackNoOrder) {
       query = query.orderBy('createdAt', descending: true);

@@ -115,7 +115,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
               children: [
                 const Text('Active Shipments', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 TextButton(
-                  onPressed: () => context.go('/business/track'),
+                  onPressed: () => context.push('/business/track'),
                   child: const Text('View All'),
                 ),
               ],
@@ -229,7 +229,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                           ],
                         ),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () => context.go('/business/track/${shipment.shipmentId}'),
+                        onTap: () => context.push('/business/track/${shipment.shipmentId}'),
                       );
                     },
                   );
@@ -329,7 +329,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
         side: BorderSide(color: Colors.grey.shade200),
       ),
       child: InkWell(
-        onTap: () => context.go(route),
+        onTap: () => context.push(route),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16.0),

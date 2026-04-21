@@ -262,6 +262,47 @@ class _AIRiskReportScreenState extends State<AIRiskReportScreen> {
 
                       const SizedBox(height: 20),
 
+                      // ── Gemini Deep Analysis ──────────────────────────────
+                      const Text('🤖 Gemini Deep Analysis', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      Consumer<AIProvider>(
+                        builder: (context, ai, _) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Fraud Analysis Button + Result
+                              _buildAIActionCard(
+                                title: 'AI Fraud Analysis',
+                                subtitle: 'Deep scan for anomalies using Gemini',
+                                icon: Icons.security,
+                                color: const Color(0xFFDC2626),
+                                isLoading: ai.isLoadingFraudAnalysis,
+                                result: ai.fraudAnalysisReport,
+                                onGenerate: () {
+                                  context.read<AIProvider>().fetchFraudAnalysis(transporterId: uid);
+                                },
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Delivery Prediction Button + Result
+                              _buildAIActionCard(
+                                title: 'AI Delivery Prediction',
+                                subtitle: 'Predict delays and failure risks',
+                                icon: Icons.trending_up,
+                                color: const Color(0xFF7C3AED),
+                                isLoading: ai.isLoadingPrediction,
+                                result: ai.deliveryPrediction,
+                                onGenerate: () {
+                                  context.read<AIProvider>().fetchDeliveryPrediction(transporterId: uid);
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 20),
+
                       // ── Metrics Overview ────────────────────────────────
                       const Text('📊 Risk Score Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
@@ -291,7 +332,7 @@ class _AIRiskReportScreenState extends State<AIRiskReportScreen> {
 
                       const SizedBox(height: 20),
 
-                      // ── Generate Full Report ────────────────────────────
+                      // ── Generate Insight Report ──────────────────────────
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
@@ -305,7 +346,7 @@ class _AIRiskReportScreenState extends State<AIRiskReportScreen> {
                             );
                           },
                           icon: const Icon(Icons.auto_awesome, color: Colors.white),
-                          label: const Text('Regenerate AI Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          label: const Text('Regenerate AI Insight', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.purple,
                             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -346,6 +387,79 @@ class _AIRiskReportScreenState extends State<AIRiskReportScreen> {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAIActionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required bool isLoading,
+    required String? result,
+    required VoidCallback onGenerate,
+  }) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: color)),
+                      Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.black45)),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: isLoading ? null : onGenerate,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: color,
+                    disabledBackgroundColor: color.withValues(alpha: 0.4),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
+                  ),
+                  child: isLoading
+                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Generate', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            if (isLoading) ...[
+              const SizedBox(height: 12),
+              LinearProgressIndicator(color: color, backgroundColor: color.withValues(alpha: 0.1)),
+              const SizedBox(height: 8),
+              Text('Gemini is analyzing...', style: TextStyle(fontSize: 12, color: color, fontStyle: FontStyle.italic)),
+            ],
+            if (result != null && !isLoading) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(result, style: const TextStyle(fontSize: 13, height: 1.5, color: Colors.black87)),
+            ],
           ],
         ),
       ),

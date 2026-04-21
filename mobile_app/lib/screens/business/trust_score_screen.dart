@@ -257,6 +257,7 @@ class TrustScoreScreen extends StatelessWidget {
     final userModel = transporter['userModel'] as UserModel;
 
     ai.fetchGeminiReport(
+      transporterId: transporter['id'] as String,
       transporterName: transporter['name'] as String,
       trustScore: transporter['score'] as double,
       totalDelays: transporter['delays'] as int,

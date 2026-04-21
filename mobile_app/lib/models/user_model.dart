@@ -7,6 +7,7 @@ class UserModel {
   final String name;
   final String phone;
   final String? gstin;
+  final bool gstVerified;
   final DateTime createdAt;
 
   // ── AI / Trust Analytics Fields ────────────────────────────────────────
@@ -22,6 +23,9 @@ class UserModel {
   final double avgRating;
   final Map<String, dynamic>? trustBreakdown;
   final String? aiReport;
+  final String? aiFraudAnalysis;
+  final String? aiDeliveryPrediction;
+  final DateTime? aiUpdatedAt;
 
   UserModel({
     required this.uid,
@@ -30,6 +34,7 @@ class UserModel {
     required this.name,
     required this.phone,
     this.gstin,
+    this.gstVerified = false,
     required this.createdAt,
     this.trustScore = 0.0,
     this.completedTrips = 0,
@@ -41,6 +46,9 @@ class UserModel {
     this.avgRating = 5.0,
     this.trustBreakdown,
     this.aiReport,
+    this.aiFraudAnalysis,
+    this.aiDeliveryPrediction,
+    this.aiUpdatedAt,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map, String id) {
@@ -51,6 +59,7 @@ class UserModel {
       name: map['name'] as String? ?? 'Unknown',
       phone: map['phone'] as String? ?? '',
       gstin: map['gstin'] as String?,
+      gstVerified: map['gstVerified'] as bool? ?? false,
       createdAt: map['createdAt'] != null
           ? (map['createdAt'] is Timestamp
               ? (map['createdAt'] as Timestamp).toDate()
@@ -66,6 +75,13 @@ class UserModel {
       avgRating: (map['avgRating'] as num?)?.toDouble() ?? 5.0,
       trustBreakdown: map['trustBreakdown'] as Map<String, dynamic>?,
       aiReport: map['aiReport'] as String?,
+      aiFraudAnalysis: map['aiFraudAnalysis'] as String?,
+      aiDeliveryPrediction: map['aiDeliveryPrediction'] as String?,
+      aiUpdatedAt: map['aiUpdatedAt'] != null
+          ? (map['aiUpdatedAt'] is Timestamp
+              ? (map['aiUpdatedAt'] as Timestamp).toDate()
+              : DateTime.tryParse(map['aiUpdatedAt'].toString()))
+          : null,
     );
   }
 
@@ -77,6 +93,7 @@ class UserModel {
       'name': name,
       'phone': phone,
       if (gstin != null) 'gstin': gstin,
+      'gstVerified': gstVerified,
       'createdAt': createdAt.toIso8601String(),
       'trustScore': trustScore,
       'completedTrips': completedTrips,
@@ -88,6 +105,9 @@ class UserModel {
       'avgRating': avgRating,
       if (trustBreakdown != null) 'trustBreakdown': trustBreakdown,
       if (aiReport != null) 'aiReport': aiReport,
+      if (aiFraudAnalysis != null) 'aiFraudAnalysis': aiFraudAnalysis,
+      if (aiDeliveryPrediction != null) 'aiDeliveryPrediction': aiDeliveryPrediction,
+      if (aiUpdatedAt != null) 'aiUpdatedAt': aiUpdatedAt!.toIso8601String(),
     };
   }
 }

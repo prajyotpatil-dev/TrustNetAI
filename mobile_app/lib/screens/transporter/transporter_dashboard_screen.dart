@@ -98,7 +98,7 @@ class _TransporterDashboardScreenState extends State<TransporterDashboardScreen>
                     const Text('Find and accept new shipments', style: TextStyle(color: Color(0xFFDBEAFE))),
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
-                      onPressed: () => context.go('/transporter/marketplace'),
+                      onPressed: () => context.push('/transporter/marketplace'),
                       icon: const Icon(Icons.local_shipping, color: Color(0xFF2563EB)),
                       label: const Text('View Open Loads', style: TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
@@ -220,7 +220,7 @@ class _TransporterDashboardScreenState extends State<TransporterDashboardScreen>
                                     children: [
                                       if (shipment.status != ShipmentStatus.delivered) ...[
                                         OutlinedButton(
-                                          onPressed: () => context.go('/transporter/update-status/${shipment.shipmentId}'),
+                                          onPressed: () => context.push('/transporter/update-status/${shipment.shipmentId}'),
                                           style: OutlinedButton.styleFrom(
                                             visualDensity: VisualDensity.compact,
                                           ),
@@ -229,7 +229,7 @@ class _TransporterDashboardScreenState extends State<TransporterDashboardScreen>
                                         const SizedBox(width: 8),
                                       ],
                                       ElevatedButton(
-                                        onPressed: () => context.go('/transporter/upload-epod/${shipment.shipmentId}'),
+                                        onPressed: () => context.push('/transporter/upload-epod/${shipment.shipmentId}'),
                                         style: ElevatedButton.styleFrom(
                                           visualDensity: VisualDensity.compact,
                                           backgroundColor: const Color(0xFF0F172A),
@@ -266,7 +266,7 @@ class _TransporterDashboardScreenState extends State<TransporterDashboardScreen>
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () => context.go('/transporter/ai-report'),
+                  onPressed: () => context.push('/transporter/ai-report'),
                   icon: const Icon(Icons.psychology, color: Colors.white),
                   label: const Text('View AI Performance Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(

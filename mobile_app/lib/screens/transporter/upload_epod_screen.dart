@@ -88,13 +88,35 @@ class _UploadEPODScreenState extends State<UploadEPODScreen> {
           backgroundColor: Colors.green,
         ),
       );
-      final role = context.read<UserProvider>().user?.role ?? 'transporter';
-      context.go(role == 'business' ? '/business/dashboard' : '/transporter/dashboard');
+      context.pop();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      String errorMsg = e.toString();
+      if (errorMsg.contains('unauthorized') || errorMsg.contains('permission-denied')) {
+        errorMsg = 'Upload failed: Permission denied. Please ensure you are logged in.';
+      } else if (errorMsg.contains('object-not-found')) {
+        errorMsg = 'Upload failed: Storage object not found.';
+      } else if (errorMsg.contains('retry-limit-exceeded')) {
+        errorMsg = 'Upload failed: Network error. Please check your connection and try again.';
+      } else {
+        errorMsg = 'Upload failed: ${e.toString().replaceAll('Exception: ', '')}';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text(errorMsg)),
+            ],
+          ),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 5),
+        ),
       );
     }
   }

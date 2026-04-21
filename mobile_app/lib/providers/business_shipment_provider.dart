@@ -105,6 +105,15 @@ class BusinessShipmentProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> verifyEPOD(String shipmentId, String verifiedByUid) async {
+    try {
+      await _repository.verifyEPOD(shipmentId, verifiedByUid);
+    } catch (e) {
+      debugPrint('Error verifying ePOD: $e');
+      rethrow;
+    }
+  }
+
   @override
   void dispose() {
     _shipmentSubscription?.cancel();

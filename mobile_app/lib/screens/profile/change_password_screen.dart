@@ -44,29 +44,47 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Change Password')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            _buildField('Current Password', _oldController),
-            const SizedBox(height: 16),
-            _buildField('New Password', _newController),
-            const SizedBox(height: 16),
-            _buildField('Confirm New Password', _confirmController),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _updatePassword,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                child: _isLoading 
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-                    : const Text('Update Password', style: TextStyle(color: Colors.white, fontSize: 16)),
+    return PopScope(
+      canPop: !context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && context.canPop()) {
+          context.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: context.canPop() 
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  context.pop();
+                },
+              )
+            : null,
+          title: const Text('Change Password'),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              _buildField('Current Password', _oldController),
+              const SizedBox(height: 16),
+              _buildField('New Password', _newController),
+              const SizedBox(height: 16),
+              _buildField('Confirm New Password', _confirmController),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _updatePassword,
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  child: _isLoading 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                      : const Text('Update Password', style: TextStyle(color: Colors.white, fontSize: 16)),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

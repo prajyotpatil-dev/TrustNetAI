@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:crypto/crypto.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
@@ -81,9 +83,26 @@ class ShipmentRepository {
   }
 
   Future<void> acceptMarketplaceShipment(String shipmentId, String transporterId) async {
-    await _firestoreService.updateShipment(shipmentId, {
-      'transporterId': transporterId,
-      'status': ShipmentStatus.assigned.firestoreValue,
+    final docRef = _firestoreService.getShipmentDocRef(shipmentId);
+
+    await FirebaseFirestore.instance.runTransaction((transaction) async {
+      final doc = await transaction.get(docRef);
+
+      if (!doc.exists) {
+        throw Exception("Shipment missing.");
+      }
+
+      final data = doc.data() as Map<String, dynamic>?;
+      if (data?['transporterId'] != null || data?['status'] != ShipmentStatus.pending.firestoreValue) {
+        throw Exception("Shipment is already assigned or no longer available.");
+      }
+
+      transaction.update(docRef, {
+        'transporterId': transporterId,
+        'status': ShipmentStatus.assigned.firestoreValue,
+        'assignedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     });
   }
 
@@ -144,11 +163,33 @@ class ShipmentRepository {
   }
 
   Future<void> uploadEPOD(String shipmentId, File imageFile, {String? remarks}) async {
+    // ── Verify user is authenticated before upload ───────────────────────
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      throw Exception('You must be logged in to upload ePOD. Please sign in and try again.');
+    }
+
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final path = 'epod/$shipmentId/$timestamp.jpg';
     final ref = _storage.ref().child(path);
 
-    await ref.putFile(imageFile);
+    try {
+      await ref.putFile(
+        imageFile,
+        SettableMetadata(
+          contentType: 'image/jpeg',
+          customMetadata: {
+            'uploadedBy': currentUser.uid,
+            'shipmentId': shipmentId,
+          },
+        ),
+      );
+    } on FirebaseException catch (e) {
+      if (e.code == 'unauthorized' || e.code == 'permission-denied') {
+        throw Exception('Storage permission denied. Please ensure you are logged in and try again.');
+      }
+      rethrow;
+    }
     final downloadUrl = await ref.getDownloadURL();
 
     // ── Compute image hash for fraud detection ────────────────────────────
@@ -189,6 +230,7 @@ class ShipmentRepository {
 
     await _firestoreService.updateShipment(shipmentId, {
       'epodUrl': downloadUrl,
+      'epodUploadedAt': DateTime.now().toIso8601String(),
       'proofMetadata': proofMetadata,
       'status': ShipmentStatus.delivered.firestoreValue,
       'trustScore': newScore,
@@ -216,5 +258,14 @@ class ShipmentRepository {
   /// Get traffic condition for display
   String getTrafficCondition() {
     return _etaService.getTrafficCondition();
+  }
+
+  /// Business owner marks an ePOD as verified
+  Future<void> verifyEPOD(String shipmentId, String verifiedByUid) async {
+    await _firestoreService.updateShipment(shipmentId, {
+      'epodVerified': true,
+      'epodVerifiedAt': DateTime.now().toIso8601String(),
+      'epodVerifiedBy': verifiedByUid,
+    });
   }
 }

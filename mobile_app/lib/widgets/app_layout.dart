@@ -14,22 +14,38 @@ class AppLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     // For simplicity on mobile, we use a BottomNavigationBar or a Drawer.
     // Let's use a standard Scaffold with a Drawer for navigation.
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('TrustNet AI', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () => context.push('/notifications'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.account_circle),
-            onPressed: () => context.push('/profile'),
-          ),
-        ],
+    return PopScope(
+      canPop: !context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && context.canPop()) {
+          context.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: context.canPop() 
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  context.pop();
+                },
+              )
+            : null,
+          title: const Text('TrustNet AI', style: TextStyle(fontWeight: FontWeight.bold)),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_none),
+              onPressed: () => context.push('/notifications'),
+            ),
+            IconButton(
+              icon: const Icon(Icons.account_circle),
+              onPressed: () => context.push('/profile'),
+            ),
+          ],
+        ),
+        drawer: context.canPop() ? null : const AppDrawer(), // Hide drawer when pushing inner screens
+        body: child,
       ),
-      drawer: const AppDrawer(),
-      body: child,
     );
   }
 }

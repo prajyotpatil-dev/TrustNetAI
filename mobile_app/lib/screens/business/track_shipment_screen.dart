@@ -435,6 +435,12 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
                     ]),
                   ),
                 ),
+
+                // ── ePOD Section ─────────────────────────────────────────
+                const SizedBox(height: 20),
+                const Text('Proof of Delivery', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                _buildEpodCard(context, shipment),
               ],
             ),
           );
@@ -504,6 +510,123 @@ class _TrackShipmentScreenState extends State<TrackShipmentScreen> {
           ),
         ]);
       }),
+    );
+  }
+
+  Widget _buildEpodCard(BuildContext context, ShipmentModel shipment) {
+    if (shipment.epodUrl == null) {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade200),
+        ),
+        child: InkWell(
+          onTap: () => context.push('/business/view-epod/${widget.shipmentId}'),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.image_not_supported_outlined, color: Colors.grey.shade400, size: 28),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('No ePOD Uploaded', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      SizedBox(height: 2),
+                      Text('Awaiting transporter upload', style: TextStyle(color: Colors.black54, fontSize: 13)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.black38),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ePOD exists — show thumbnail + verification badge
+    final isVerified = shipment.epodVerified;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/business/view-epod/${widget.shipmentId}'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: 140,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.network(
+                    shipment.epodUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                    ),
+                  ),
+                  // Dark overlay
+                  Container(color: Colors.black.withValues(alpha: 0.15)),
+                  // Badge
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isVerified ? const Color(0xFF16A34A) : const Color(0xFFD97706),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isVerified ? Icons.verified : Icons.pending_actions,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isVerified ? 'Verified' : 'Pending',
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('View ePOD Details', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF2563EB))),
+                  Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey.shade400),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

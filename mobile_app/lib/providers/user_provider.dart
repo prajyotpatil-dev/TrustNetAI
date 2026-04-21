@@ -41,6 +41,7 @@ class UserProvider extends ChangeNotifier {
     String? email,
     String? phone,
     String? gstin,
+    bool gstVerified = false,
   }) async {
     try {
       final existingData = await _firebaseService.get('users', firebaseUser.uid);
@@ -54,6 +55,7 @@ class UserProvider extends ChangeNotifier {
           'name': name ?? firebaseUser.displayName ?? 'New User',
           'email': email ?? firebaseUser.email ?? '',
           'phone': phone ?? firebaseUser.phoneNumber ?? '',
+          'gstVerified': gstVerified,
         };
 
         if (gstin != null && gstin.isNotEmpty) {

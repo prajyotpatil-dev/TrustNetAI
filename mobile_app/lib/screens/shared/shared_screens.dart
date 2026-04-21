@@ -7,6 +7,7 @@ import '../../providers/user_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../utils/test_data_generator.dart';
+import '../../services/gst_verification_service.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -134,14 +135,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _profileTile(Icons.privacy_tip_outlined, 'Privacy Policy', () => context.push('/profile/privacy')),
                   const Divider(height: 1),
                   
-                  // Hackathon tool
+                  // GST Verification status for business users
+                  if (_userData?['role'] == 'business' && _userData?['gstin'] != null)
+                    _profileTile(
+                      _userData?['gstVerified'] == true ? Icons.verified_user : Icons.gpp_maybe,
+                      'GST: ${_userData?['gstin']}${_userData?['gstVerified'] == true ? ' (Verified)' : ' (Unverified)'}',
+                      () {},
+                      color: _userData?['gstVerified'] == true ? Colors.green : Colors.orange,
+                    ),
+
+                  // Hackathon tools
                   if (_userData?['role'] == 'transporter')
                     _profileTile(
                       Icons.science, 
                       'Generate Sample Data (Demo)', 
                       () => _generateSampleData(context),
                       color: Colors.purple,
-                    ),
+                   ),
                   
                   _profileTile(
                     Icons.logout,
@@ -226,6 +236,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Navigator.pop(context); // Dismiss loading
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error generating data: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _seedGSTData(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await GSTVerificationService.seedDemoData();
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('GST demo database seeded successfully! (10 records)'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error seeding GST data: $e'), backgroundColor: Colors.red),
         );
       }
     }

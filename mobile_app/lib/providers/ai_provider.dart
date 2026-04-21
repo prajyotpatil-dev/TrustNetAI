@@ -62,17 +62,32 @@ class AIProvider extends ChangeNotifier {
   Map<String, dynamic>? get transporterStats => _transporterStats;
   bool get isLoadingStats => _isLoadingStats;
 
+  // ── Fraud Analysis State ─────────────────────────────────────────────────
+  String? _fraudAnalysisReport;
+  bool _isLoadingFraudAnalysis = false;
+
+  String? get fraudAnalysisReport => _fraudAnalysisReport;
+  bool get isLoadingFraudAnalysis => _isLoadingFraudAnalysis;
+
+  // ── Delivery Prediction State ────────────────────────────────────────────
+  String? _deliveryPrediction;
+  bool _isLoadingPrediction = false;
+
+  String? get deliveryPrediction => _deliveryPrediction;
+  bool get isLoadingPrediction => _isLoadingPrediction;
+
   // ═══════════════════════════════════════════════════════════════════════
   // METHODS
   // ═══════════════════════════════════════════════════════════════════════
 
   /// Fetch AI-generated trust report for a transporter
   Future<void> fetchGeminiReport({
-    required String transporterName,
-    required double trustScore,
-    required int totalDelays,
-    required double onTimeRate,
-    required int completedTrips,
+    required String transporterId,
+    String? transporterName,
+    double? trustScore,
+    int? totalDelays,
+    double? onTimeRate,
+    int? completedTrips,
     double epodCompliance = 0.0,
     double gpsReliability = 100.0,
   }) async {
@@ -82,6 +97,7 @@ class AIProvider extends ChangeNotifier {
 
     try {
       _geminiReport = await _geminiService.generateTrustReport(
+        transporterId: transporterId,
         transporterName: transporterName,
         trustScore: trustScore,
         totalDelays: totalDelays,
@@ -95,6 +111,42 @@ class AIProvider extends ChangeNotifier {
       debugPrint('[AIProvider] Report error: $e');
     } finally {
       _isLoadingReport = false;
+      notifyListeners();
+    }
+  }
+
+  /// Fetch AI fraud analysis for a transporter
+  Future<void> fetchFraudAnalysis({required String transporterId}) async {
+    _isLoadingFraudAnalysis = true;
+    notifyListeners();
+
+    try {
+      _fraudAnalysisReport = await _geminiService.generateFraudAnalysis(
+        transporterId: transporterId,
+      );
+    } catch (e) {
+      debugPrint('[AIProvider] Fraud analysis error: $e');
+      _fraudAnalysisReport = 'Failed to generate fraud analysis: $e';
+    } finally {
+      _isLoadingFraudAnalysis = false;
+      notifyListeners();
+    }
+  }
+
+  /// Fetch AI delivery prediction for a transporter
+  Future<void> fetchDeliveryPrediction({required String transporterId}) async {
+    _isLoadingPrediction = true;
+    notifyListeners();
+
+    try {
+      _deliveryPrediction = await _geminiService.generateDeliveryPrediction(
+        transporterId: transporterId,
+      );
+    } catch (e) {
+      debugPrint('[AIProvider] Prediction error: $e');
+      _deliveryPrediction = 'Failed to generate prediction: $e';
+    } finally {
+      _isLoadingPrediction = false;
       notifyListeners();
     }
   }
@@ -243,6 +295,8 @@ class AIProvider extends ChangeNotifier {
     _delayedCount = 0;
     _transporterRankings = [];
     _transporterStats = null;
+    _fraudAnalysisReport = null;
+    _deliveryPrediction = null;
     notifyListeners();
   }
 }

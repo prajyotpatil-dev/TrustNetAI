@@ -10,6 +10,10 @@ class ShipmentModel {
   final String? transporterId;
   final String? businessId;
   final String? epodUrl;
+  final DateTime? epodUploadedAt;
+  final bool epodVerified;
+  final DateTime? epodVerifiedAt;
+  final String? epodVerifiedBy;
   final double trustScore;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -41,6 +45,10 @@ class ShipmentModel {
     this.transporterId,
     this.businessId,
     this.epodUrl,
+    this.epodUploadedAt,
+    this.epodVerified = false,
+    this.epodVerifiedAt,
+    this.epodVerifiedBy,
     this.trustScore = 0.0,
     required this.createdAt,
     required this.updatedAt,
@@ -71,6 +79,10 @@ class ShipmentModel {
       transporterId: map['transporterId'] as String?,
       businessId: map['businessId'] as String?,
       epodUrl: map['epodUrl'] as String?,
+      epodUploadedAt: map['epodUploadedAt'] != null ? _parseDateTime(map['epodUploadedAt']) : null,
+      epodVerified: map['epodVerified'] as bool? ?? false,
+      epodVerifiedAt: map['epodVerifiedAt'] != null ? _parseDateTime(map['epodVerifiedAt']) : null,
+      epodVerifiedBy: map['epodVerifiedBy'] as String?,
       trustScore: (map['trustScore'] as num?)?.toDouble() ?? 0.0,
       createdAt: _parseDateTime(map['createdAt']),
       updatedAt: _parseDateTime(map['updatedAt']),
@@ -108,6 +120,10 @@ class ShipmentModel {
       'transporterId': transporterId,
       if (businessId != null) 'businessId': businessId,
       if (epodUrl != null) 'epodUrl': epodUrl,
+      if (epodUploadedAt != null) 'epodUploadedAt': epodUploadedAt!.toIso8601String(),
+      'epodVerified': epodVerified,
+      if (epodVerifiedAt != null) 'epodVerifiedAt': epodVerifiedAt!.toIso8601String(),
+      if (epodVerifiedBy != null) 'epodVerifiedBy': epodVerifiedBy,
       'trustScore': trustScore,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -139,6 +155,10 @@ class ShipmentModel {
     String? transporterId,
     String? businessId,
     String? epodUrl,
+    DateTime? epodUploadedAt,
+    bool? epodVerified,
+    DateTime? epodVerifiedAt,
+    String? epodVerifiedBy,
     double? trustScore,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -166,6 +186,10 @@ class ShipmentModel {
       transporterId: transporterId ?? this.transporterId,
       businessId: businessId ?? this.businessId,
       epodUrl: epodUrl ?? this.epodUrl,
+      epodUploadedAt: epodUploadedAt ?? this.epodUploadedAt,
+      epodVerified: epodVerified ?? this.epodVerified,
+      epodVerifiedAt: epodVerifiedAt ?? this.epodVerifiedAt,
+      epodVerifiedBy: epodVerifiedBy ?? this.epodVerifiedBy,
       trustScore: trustScore ?? this.trustScore,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

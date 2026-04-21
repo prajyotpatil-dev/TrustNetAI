@@ -28,7 +28,7 @@ class _TransporterMarketplaceScreenState extends State<TransporterMarketplaceScr
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Shipment Accepted! It is now in your Active dashboard.', style: TextStyle(color: Colors.white)), backgroundColor: Colors.green),
       );
-      context.go('/transporter/dashboard');
+      context.pop();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to accept shipment: $e', style: const TextStyle(color: Colors.white)), backgroundColor: Colors.red),
@@ -49,7 +49,7 @@ class _TransporterMarketplaceScreenState extends State<TransporterMarketplaceScr
               children: [
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () => context.go('/transporter/dashboard'),
+                  onPressed: () => context.pop(),
                 ),
                 const SizedBox(width: 8),
                 const Text('Open Marketplace', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),

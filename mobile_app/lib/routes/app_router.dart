@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../screens/onboarding/splash_screen.dart';
 import '../screens/onboarding/role_selection_screen.dart';
 import '../screens/onboarding/login_screen.dart';
+import '../screens/onboarding/register_screen.dart';
 // Business
 import '../screens/business/business_dashboard_screen.dart';
 import '../screens/business/track_shipment_screen.dart';
@@ -12,6 +13,7 @@ import '../screens/business/ai_risk_report_screen.dart';
 import '../screens/business/network_trust_screen.dart';
 import '../screens/business/smart_assignment_screen.dart';
 import '../screens/business/shipment_qr_screen.dart';
+import '../screens/business/view_epod_screen.dart';
 import '../screens/transporter/transporter_dashboard_screen.dart';
 import '../screens/transporter/create_shipment_screen.dart';
 import '../screens/transporter/transporter_marketplace_screen.dart';
@@ -36,6 +38,13 @@ class AppRouter {
         builder: (c, s) {
           final role = s.extra as String? ?? 'business';
           return LoginScreen(role: role);
+        },
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (c, s) {
+          final role = s.extra as String? ?? 'business';
+          return RegisterScreen(role: role);
         },
       ),
 
@@ -64,6 +73,10 @@ class AppRouter {
         path: '/business/qr/:id',
         builder: (c, s) => ShipmentQRScreen(shipmentId: s.pathParameters['id'] ?? ''),
       ),
+      GoRoute(
+        path: '/business/view-epod/:id',
+        builder: (c, s) => ViewEPODScreen(shipmentId: s.pathParameters['id'] ?? ''),
+      ),
 
       // ── Transporter Routes ────────────────────────
       GoRoute(path: '/transporter/dashboard', builder: (c, s) => const TransporterDashboardScreen()),
@@ -79,6 +92,13 @@ class AppRouter {
       GoRoute(
         path: '/transporter/epod/:id',
         builder: (c, s) => UploadEPODScreen(shipmentId: s.pathParameters['id'] ?? 'SH001'),
+      ),
+      GoRoute(
+        path: '/transporter/upload-epod/:shipmentId',
+        builder: (context, state) {
+          final shipmentId = state.pathParameters['shipmentId']!;
+          return UploadEPODScreen(shipmentId: shipmentId);
+        },
       ),
       GoRoute(path: '/transporter/ai-report', builder: (c, s) => const AITrustReportScreen()),
 

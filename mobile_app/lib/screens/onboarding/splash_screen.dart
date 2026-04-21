@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import '../../providers/user_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -10,7 +12,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override
@@ -21,11 +24,47 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       duration: const Duration(seconds: 2),
     )..repeat();
 
-    Timer(const Duration(milliseconds: 2500), () {
-      if (mounted) {
-        context.go('/role-selection');
-      }
+    // Start auth check after a brief splash delay for branding
+    Timer(const Duration(milliseconds: 1800), () {
+      if (mounted) _checkAuthAndNavigate();
     });
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+
+      if (currentUser == null) {
+        // ── Not logged in → role selection ────────────────────────────
+        if (mounted) context.go('/role-selection');
+        return;
+      }
+
+      // ── User is logged in → fetch profile & route by role ──────────
+      if (!mounted) return;
+      final userProvider = context.read<UserProvider>();
+      await userProvider.fetchUserProfile(currentUser.uid);
+
+      if (!mounted) return;
+
+      final user = userProvider.user;
+      if (user == null) {
+        // Profile missing in Firestore (edge case) — send to role selection
+        context.go('/role-selection');
+        return;
+      }
+
+      // Route based on role
+      if (user.role == 'business') {
+        context.go('/business/dashboard');
+      } else {
+        context.go('/transporter/dashboard');
+      }
+    } catch (e) {
+      debugPrint('[Splash] Auth check failed: $e');
+      // On any error, fall back to role selection
+      if (mounted) context.go('/role-selection');
+    }
   }
 
   @override
@@ -113,6 +152,16 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               style: TextStyle(
                 fontSize: 18,
                 color: Color(0xFFDBEAFE), // blue-100
+              ),
+            ),
+            const SizedBox(height: 32),
+            // Loading indicator while checking auth
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.white70,
               ),
             ),
           ],

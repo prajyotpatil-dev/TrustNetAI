@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'routes/app_router.dart';
 import 'services/firebase_service.dart';
+import 'services/gst_verification_service.dart';
 import 'providers/user_provider.dart';
 import 'providers/business_shipment_provider.dart';
 import 'providers/transporter_shipment_provider.dart';
@@ -18,6 +19,9 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // Seed GST demo data on startup (idempotent — uses doc IDs, safe to call multiple times)
+    await GSTVerificationService.seedDemoData();
   } catch (e) {
     debugPrint("Firebase initialization failed or not configured. UI will run in mock mode. Error: $e");
   }

@@ -141,7 +141,7 @@ class AppDrawerTile extends StatelessWidget {
         } else if (isPush) {
           context.push(route);
         } else {
-          context.go(route);
+          context.pushReplacement(route);
         }
       },
     );
