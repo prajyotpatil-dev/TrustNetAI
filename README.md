@@ -185,8 +185,8 @@ firebase --version
 
 ```bash
 # Clone
-git clone https://github.com/prajyotpatil-dev/trustnet-ai-3.0.git
-cd trustnet-ai-3.0/mobile_app
+git clone https://github.com/prajyotpatil-dev/TrustNetAI.git
+cd TrustNetAI/mobile_app
 
 # Flutter dependencies
 flutter pub get
