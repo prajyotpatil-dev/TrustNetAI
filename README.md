@@ -1,4 +1,4 @@
-#                                                             🚛 TrustNet AI 
+#                                                              🚛 TrustNet AI 
 
 ### AI-Powered Trust & Intelligence Platform for Indian Logistics
 
