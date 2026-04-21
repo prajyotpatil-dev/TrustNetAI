@@ -1,4 +1,4 @@
-# 🚛 TrustNet AI 3.0
+#                                                             🚛 TrustNet AI 
 
 ### AI-Powered Trust & Intelligence Platform for Indian Logistics
 
@@ -19,7 +19,7 @@
 
 ## 📖 Overview
 
-**TrustNet AI 3.0** is a Flutter-based logistics trust management platform built for the **Indian supply chain industry**.
+**TrustNet AI** is a Flutter-based logistics trust management platform built for the **Indian supply chain industry**.
 
 It uses **Google Gemini 2.0 Flash** via **Firebase Cloud Functions** to deliver intelligent carrier trust scoring, real-time fraud detection, smart transporter-to-shipment assignment, and predictive delivery analytics — replacing gut-feel decisions with **data-driven intelligence**.
 
@@ -55,10 +55,10 @@ All AI calls are **server-side only** (no client-side API key exposure), with re
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                      Flutter Mobile App                      │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐   │
-│  │ Screens  │ │ Providers│ │ Services │ │ Repositories │   │
-│  │  (UI)    ├─┤ (State)  ├─┤ (Logic)  ├─┤ (Firestore)  │   │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────────┘   │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐     │
+│  │ Screens  │ │ Providers│ │ Services │ │ Repositories │     │
+│  │  (UI)    ├─┤ (State)  ├─┤ (Logic)  ├─┤ (Firestore)  │     │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────────┘     │
 └─────────────────────────┬────────────────────────────────────┘
                           │
                  ┌────────▼────────┐
